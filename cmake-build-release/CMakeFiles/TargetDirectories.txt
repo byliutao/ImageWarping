@@ -1,3 +1,0 @@
-/home/nuc/workspace/ConformalResizing/cmake-build-release/CMakeFiles/conformalResizing.dir
-/home/nuc/workspace/ConformalResizing/cmake-build-release/CMakeFiles/edit_cache.dir
-/home/nuc/workspace/ConformalResizing/cmake-build-release/CMakeFiles/rebuild_cache.dir
