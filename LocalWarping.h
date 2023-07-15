@@ -4,7 +4,7 @@
 
 #ifndef CONFORMALRESIZING_LOCALWARPING_H
 #define CONFORMALRESIZING_LOCALWARPING_H
-#define SHOW
+//#define SHOW
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <limits>
@@ -32,6 +32,11 @@ class LocalWarping {
     Mat _source_img;
     Mat _local_wraping_img;
 
+    vector<vector<Point2i>> _seams_left;
+    vector<vector<Point2i>> _seams_right;
+    vector<vector<Point2i>> _seams_top;
+    vector<vector<Point2i>> _seams_bottom;
+
     Rect getSubImageRect(Position position);
     bool imageShift(Position position);
     void singleShift(Position position, const vector<Point2i> &seam);
@@ -42,7 +47,8 @@ class LocalWarping {
 public:
     LocalWarping(Mat &source_img, Mat &mask);
     void getExpandImage(Mat &image);
-
+    void getSeams(vector<vector<Point2i>> &seams_left,vector<vector<Point2i>> &seams_right,
+                  vector<vector<Point2i>> &seams_top,vector<vector<Point2i>> &seams_bottom);
 };
 
 

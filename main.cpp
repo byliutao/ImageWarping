@@ -9,6 +9,28 @@
 using namespace std;
 using namespace cv;
 
+const int super_parameter_mesh_quad_length = 26;
+
+void cropImage(Mat &input_image, Mat &result_image, int quad_length){
+
+    int cols = input_image.cols;
+    int rows = input_image.rows;
+
+    // 计算列数除以 quad_length 的商 cols_new，确保列数可以被 quad_length 整除
+    int cols_new = cols / quad_length;
+    cols = quad_length * cols_new;
+
+    // 计算行数除以 quad_length 的商 rows_new，确保行数可以被 quad_length 整除
+    int rows_new = rows / quad_length;
+    rows = quad_length * rows_new;
+
+    // 使用 cv::Rect 指定裁剪区域的左上角点和宽度高度
+    cv::Rect cropRect(0, 0, cols, rows);
+
+    // 获取图像的子图像（裁剪图像）
+    result_image = input_image(cropRect);
+}
+
 void getMask(Mat &input_img, Mat &whiteMask){
     cv::Scalar lowerWhite = cv::Scalar(245, 245, 245);
     cv::Scalar upperWhite = cv::Scalar(255, 255, 255);
@@ -49,7 +71,9 @@ void getMask(Mat &input_img, Mat &whiteMask){
 
 int main(){
     Mat rgbImage = imread("/home/nuc/workspace/ImageWarping/data/building.png");
-    resize(rgbImage,rgbImage,Size(rgbImage.cols/1,rgbImage.rows/1));
+    resize(rgbImage,rgbImage,Size(rgbImage.cols/2,rgbImage.rows/2));
+
+    cropImage(rgbImage,rgbImage,super_parameter_mesh_quad_length);
 
     Mat mask(rgbImage.size(), CV_8UC1);
     getMask(rgbImage, mask);
@@ -58,9 +82,12 @@ int main(){
 //    waitKey(0);
 
     Mat expand_img;
+    vector<vector<Point2i>> seams_top, seams_bottom, seams_left, seams_right;
     LocalWarping localWarping(rgbImage, mask);
     localWarping.getExpandImage(expand_img);
-    MeshWarping meshWarping(rgbImage, expand_img, mask);
+    localWarping.getSeams(seams_left,seams_right,seams_top,seams_bottom);
+    MeshWarping meshWarping(rgbImage, expand_img, mask, super_parameter_mesh_quad_length,
+                            seams_left,seams_right,seams_top,seams_bottom);
 
     cout<<"hello warping"<<endl;
 }

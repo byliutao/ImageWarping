@@ -13,17 +13,17 @@ LocalWarping::LocalWarping(Mat &source_img, Mat &mask) {
     for(int i = 0; i < 4; i++) position_flag[i] = true;
     while(true){
         Position position;
-//        getTheBiggestPosition(position, position_flag);
-//        position_flag[position] = imageShift(position);
-        for(int i = 0; i < 4; i++){
-            position_flag[i] = imageShift(Position(i));
-        }
+        getTheBiggestPosition(position, position_flag);
+        position_flag[position] = imageShift(position);
+//        for(int i = 0; i < 4; i++){
+//            position_flag[i] = imageShift(Position(i));
+//        }
         if(!position_flag[0] && !position_flag[1] && !position_flag[2] && !position_flag[3]) break;
 
     }
-    namedWindow("expand_img",WINDOW_NORMAL);
-    imshow("expand_img",_local_wraping_img);
-    waitKey(0);
+//    namedWindow("expand_img",WINDOW_NORMAL);
+//    imshow("expand_img",_local_wraping_img);
+//    waitKey(0);
 }
 
 Rect LocalWarping::getSubImageRect(Position position) {
@@ -160,6 +160,12 @@ bool LocalWarping::imageShift(Position position) {
 
     calculateSeam(image_roi, mask_roi, direction, seam, roi);
     singleShift(position, seam);
+
+    if(position == Left) _seams_left.emplace_back(seam);
+    else if(position == Right) _seams_right.emplace_back(seam);
+    else if(position == Top) _seams_top.emplace_back(seam);
+    else _seams_bottom.emplace_back(seam);
+
     return true;
 }
 
@@ -314,7 +320,7 @@ void LocalWarping::singleShift(Position position, const vector<Point2i> &seam) {
     imshow("_mask",_mask);
     namedWindow("paint_local_wraping_img",WINDOW_NORMAL);
     imshow("paint_local_wraping_img",paint);
-    waitKey(1);
+    waitKey(0);
 #endif
 
     if(position == Bottom){
@@ -393,4 +399,12 @@ void LocalWarping::getTheBiggestPosition(LocalWarping::Position &result_position
 
 void LocalWarping::getExpandImage(Mat &image) {
     image = _local_wraping_img.clone();
+}
+
+void LocalWarping::getSeams(vector<vector<Point2i>> &seams_left, vector<vector<Point2i>> &seams_right,
+                            vector<vector<Point2i>> &seams_top, vector<vector<Point2i>> &seams_bottom) {
+    seams_bottom = _seams_bottom;
+    seams_top = _seams_top;
+    seams_left = _seams_left;
+    seams_right = _seams_right;
 }
