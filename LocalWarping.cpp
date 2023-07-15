@@ -9,29 +9,21 @@ LocalWarping::LocalWarping(Mat &source_img, Mat &mask) {
     _mask = mask.clone();
     _local_wraping_img = source_img.clone();
 
+    vector<bool> position_flag(4);
+    for(int i = 0; i < 4; i++) position_flag[i] = true;
     while(true){
+        Position position;
+//        getTheBiggestPosition(position, position_flag);
+//        position_flag[position] = imageShift(position);
         for(int i = 0; i < 4; i++){
-            switch (i) {
-                case 0:{
-                    imageShift(Top);
-                    break;
-                }
-                case 1:{
-                    imageShift(Bottom);
-                    break;
-                }
-                case 2:{
-                    imageShift(Left);
-                    break;
-                }
-                case 3:{
-                    imageShift(Right);
-                    break;
-                }
-                default: break;
-            }
+            position_flag[i] = imageShift(Position(i));
         }
+        if(!position_flag[0] && !position_flag[1] && !position_flag[2] && !position_flag[3]) break;
+
     }
+    namedWindow("expand_img",WINDOW_NORMAL);
+    imshow("expand_img",_local_wraping_img);
+    waitKey(0);
 }
 
 Rect LocalWarping::getSubImageRect(Position position) {
@@ -154,18 +146,26 @@ void LocalWarping::getEmptyPositionMask(Mat &input, Mat &output) {
     }
 }
 
-void LocalWarping::imageShift(Position position) {
+bool LocalWarping::imageShift(Position position) {
     Rect roi = getSubImageRect(position);
-    if(roi.width == 0 || roi.height == 0) return;
+    if(roi.width == 0 || roi.height == 0) return false;
+
     Mat image_roi = Mat(this->_local_wraping_img, roi);
     Mat mask_roi = Mat(this->_mask,roi);
     Direction direction;
+    vector<Point2i> seam;
+
     if(position == Left || position == Right) direction = UpToDown;
     else direction = LeftToRight;
-    vector<Point2i> seam;
+
     calculateSeam(image_roi, mask_roi, direction, seam, roi);
     singleShift(position, seam);
+    return true;
 }
+
+
+
+
 
 void LocalWarping::calculateSeam(Mat &src, Mat &mask, Direction direction, vector<Point2i> &seam, Rect roi) {
     Mat cost_image(src.size(), CV_32FC1);
@@ -238,11 +238,12 @@ void LocalWarping::calculateSeam(Mat &src, Mat &mask, Direction direction, vecto
             minValue = pixelValue;
         }
     }
+
     seam.emplace_back(minIndex,path_map.rows-1);
     int last_col_index = minIndex;
     for (int i = path_map.rows - 1; i >= 1; i--)
     {
-        int move_direction =  path_map.at<int>(i, last_col_index);
+        int move_direction =  path_map.at<int>(Point2i(last_col_index,i ));
         int col_pos = last_col_index + move_direction;
         seam.emplace_back(col_pos,i-1 );
         last_col_index = col_pos;
@@ -250,7 +251,7 @@ void LocalWarping::calculateSeam(Mat &src, Mat &mask, Direction direction, vecto
 
     if(direction == LeftToRight){
         for(int i = 0; i < seam.size(); i++){
-            Point2i temp_point(seam[i].y, src.rows - seam[i].x);
+            Point2i temp_point(seam[i].y, src.rows - 1 - seam[i].x);
             seam[i] = temp_point;
         }
     }
@@ -272,22 +273,26 @@ void LocalWarping::calculateSeam(Mat &src, Mat &mask, Direction direction, vecto
 }
 
 void LocalWarping::calculateCostImage(Mat &input_image, Mat &cost_image, Mat &mask) {
+
     // 转换为灰度图像
     cv::Mat grayImage;
     cv::cvtColor(input_image, grayImage, cv::COLOR_BGR2GRAY);
 
     // 计算梯度
     cv::Mat gradientX, gradientY;
-    cv::Sobel(grayImage, gradientX, CV_32F, 1, 0);
-    cv::Sobel(grayImage, gradientY, CV_32F, 0, 1);
+    cv::Sobel(grayImage, gradientX, CV_32F, 1, 0,3);
+    cv::Sobel(grayImage, gradientY, CV_32F, 0, 1,3);
 
     // 计算梯度幅值
-    cv::magnitude(gradientX, gradientY, cost_image);
+    cv::convertScaleAbs(gradientX, gradientX);
+    cv::convertScaleAbs(gradientY, gradientY);
+    cv::addWeighted(gradientX, 0.5, gradientY, 0.5, 0, cost_image, CV_32FC1);
+
 
     // 将 mask 图像中像素值为 255 的点在cost_image中对应的值设置为 10^8
-    for (int i = 0; i < mask.rows; ++i)
+    for (int i = 0; i < cost_image.rows; ++i)
     {
-        for (int j = 0; j < mask.cols; ++j)
+        for (int j = 0; j < cost_image.cols; ++j)
         {
             uchar value = mask.at<uchar>(i,j);
             if (value == 255)
@@ -296,18 +301,20 @@ void LocalWarping::calculateCostImage(Mat &input_image, Mat &cost_image, Mat &ma
             }
         }
     }
+
 }
 
 void LocalWarping::singleShift(Position position, const vector<Point2i> &seam) {
 #ifdef SHOW
+    Mat paint = _local_wraping_img.clone();
     for(int i = 0; i < seam.size(); i++){
-        _local_wraping_img.at<Vec3b>(seam[i]) = Vec3b(255,0,255);
+        paint.at<Vec3b>(seam[i]) = Vec3b(0,0,255);
     }
     namedWindow("_mask",WINDOW_NORMAL);
     imshow("_mask",_mask);
-    namedWindow("_local_wraping_img",WINDOW_NORMAL);
-    imshow("_local_wraping_img",_local_wraping_img);
-    waitKey(0);
+    namedWindow("paint_local_wraping_img",WINDOW_NORMAL);
+    imshow("paint_local_wraping_img",paint);
+    waitKey(1);
 #endif
 
     if(position == Bottom){
@@ -362,4 +369,28 @@ void LocalWarping::singleShift(Position position, const vector<Point2i> &seam) {
             }
         }
     }
+}
+
+void LocalWarping::getTheBiggestPosition(LocalWarping::Position &result_position, const vector<bool> &position_flag) {
+    int max_roi_length = 0;
+    Position max_roi_position;
+    for(int i = 0; i < 4; i++){
+        if(!position_flag[i]) continue;
+        max_roi_position = Position(i);
+    }
+    for(int i = 0; i < 4; i++){
+        if(!position_flag[i]) continue;
+        Position position = Position(i);
+        Rect roi = getSubImageRect(position);
+        int length = ((position == Top || position == Bottom) ? roi.width : roi.height);
+        if(length > max_roi_length){
+            max_roi_length = length;
+            max_roi_position = position;
+        }
+    }
+    result_position = max_roi_position;
+}
+
+void LocalWarping::getExpandImage(Mat &image) {
+    image = _local_wraping_img.clone();
 }

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include "LocalWarping.h"
+#include "MeshWarping.h"
 
 using namespace std;
 using namespace cv;
@@ -47,7 +48,7 @@ void getMask(Mat &input_img, Mat &whiteMask){
 }
 
 int main(){
-    Mat rgbImage = imread("/home/nuc/workspace/ImageWarping/data/test.png");
+    Mat rgbImage = imread("/home/nuc/workspace/ImageWarping/data/building.png");
     resize(rgbImage,rgbImage,Size(rgbImage.cols/1,rgbImage.rows/1));
 
     Mat mask(rgbImage.size(), CV_8UC1);
@@ -56,7 +57,10 @@ int main(){
 //    imshow("rgb",rgbImage);
 //    waitKey(0);
 
+    Mat expand_img;
     LocalWarping localWarping(rgbImage, mask);
+    localWarping.getExpandImage(expand_img);
+    MeshWarping meshWarping(rgbImage, expand_img, mask);
 
     cout<<"hello warping"<<endl;
 }

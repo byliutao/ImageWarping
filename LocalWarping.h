@@ -31,17 +31,17 @@ class LocalWarping {
     Mat _mask; //undefined region
     Mat _source_img;
     Mat _local_wraping_img;
+
     Rect getSubImageRect(Position position);
-    void imageShift(Position position);
+    bool imageShift(Position position);
     void singleShift(Position position, const vector<Point2i> &seam);
     void getEmptyPositionMask(Mat &input, Mat &output);
     void calculateSeam(Mat &src, Mat &mask, Direction direction, vector<Point2i> &seam, Rect roi);
     void calculateCostImage(Mat &input_image, Mat &cost_image, Mat &mask);
-
+    void getTheBiggestPosition(LocalWarping::Position &result_position, const vector<bool> &position_flag);
 public:
     LocalWarping(Mat &source_img, Mat &mask);
-    void warpImage(Mat &input_img, Mat &output_img);
-
+    void getExpandImage(Mat &image);
 
 };
 
