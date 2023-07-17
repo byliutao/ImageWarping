@@ -4,16 +4,68 @@
 
 #include "LocalWarping.h"
 
+void LocalWarping::show_displacement_map(vector<vector<Point2i>> displacement_map, string window_name, bool is_wait) {
+    int cols_num = displacement_map[0].size();
+    int rows_num = displacement_map.size();
+
+    Mat x_map(Size(cols_num,rows_num),CV_32SC1);
+    Mat y_map(Size(cols_num,rows_num),CV_32SC1);
+
+    for(int row = 0; row < rows_num; row++){
+        for(int col = 0; col < cols_num; col++){
+            int x_value = displacement_map.at(row)[col].x;
+            int y_value = displacement_map.at(row)[col].y;
+            x_map.at<int>(row,col) = x_value;
+            y_map.at<int>(row,col) = y_value;
+        }
+    }
+
+    double minValueX, maxValueX, minValueY, maxValueY;
+    cv::minMaxLoc(x_map, &minValueX, &maxValueX);
+    cv::minMaxLoc(y_map, &minValueY, &maxValueY);
+
+    // 计算映射的比例因子
+    double scaleX = 255.0 / (maxValueX - minValueX);
+    double scaleY = 255.0 / (maxValueY - minValueY);
+
+    // 创建 CV_8UC1 类型的图像
+    cv::Mat ucharXImage(x_map.size(), CV_8UC1);
+    cv::Mat ucharYImage(y_map.size(), CV_8UC1);
+
+    // 对矩阵中的每个元素进行映射
+    for (int row = 0; row < x_map.rows; ++row) {
+        for (int col = 0; col < x_map.cols; ++col) {
+            int x_value = x_map.at<int>(row, col);
+            int y_value = y_map.at<int>(row, col);
+            ucharXImage.at<uchar>(row, col) = static_cast<uchar>((x_value - minValueX) * scaleX);
+            ucharYImage.at<uchar>(row, col) = static_cast<uchar>((y_value - minValueY) * scaleY);
+        }
+    }
+
+    namedWindow("ImageX_"+window_name,WINDOW_NORMAL);
+    namedWindow("ImageY_"+window_name,WINDOW_NORMAL);
+    cv::imshow("ImageX_"+window_name, ucharXImage);
+    cv::imshow("ImageY_"+window_name,ucharYImage);
+    if(is_wait) cv::waitKey(0);
+    else waitKey(1);
+}
+
+
 LocalWarping::LocalWarping(Mat &source_img, Mat &mask) {
     _source_img = source_img.clone();
     _mask = mask.clone();
     _local_wraping_img = source_img.clone();
+    for(int row = 0; row < _source_img.rows; row++){
+        vector<Point2i> col_points(_source_img.cols,Point2i(0,0));
+        _displacement_map.emplace_back(col_points);
+    }
 
     vector<bool> position_flag(4);
     for(int i = 0; i < 4; i++) position_flag[i] = true;
     while(true){
         Position position;
         getTheBiggestPosition(position, position_flag);
+//        position = Bottom;
         position_flag[position] = imageShift(position);
 //        for(int i = 0; i < 4; i++){
 //            position_flag[i] = imageShift(Position(i));
@@ -21,9 +73,9 @@ LocalWarping::LocalWarping(Mat &source_img, Mat &mask) {
         if(!position_flag[0] && !position_flag[1] && !position_flag[2] && !position_flag[3]) break;
 
     }
-//    namedWindow("expand_img",WINDOW_NORMAL);
-//    imshow("expand_img",_local_wraping_img);
-//    waitKey(0);
+#ifdef RESULT_SHOW
+    draw_all_seams();
+#endif
 }
 
 Rect LocalWarping::getSubImageRect(Position position) {
@@ -159,12 +211,8 @@ bool LocalWarping::imageShift(Position position) {
     else direction = LeftToRight;
 
     calculateSeam(image_roi, mask_roi, direction, seam, roi);
-    singleShift(position, seam);
+    insertSeamAndUpdateDisplacementMap(position, seam);
 
-    if(position == Left) _seams_left.emplace_back(seam);
-    else if(position == Right) _seams_right.emplace_back(seam);
-    else if(position == Top) _seams_top.emplace_back(seam);
-    else _seams_bottom.emplace_back(seam);
 
     return true;
 }
@@ -267,15 +315,8 @@ void LocalWarping::calculateSeam(Mat &src, Mat &mask, Direction direction, vecto
         seam[i].y += roi.y;
     }
 
-#ifdef SHOW
-//    Mat paint = _source_img.clone();
-//    for(int i = 0; i < seam.size(); i++){
-//        paint.at<Vec3b>(seam[i]) = Vec3b(255,0,0);
-//    }
-//    namedWindow("paint",WINDOW_NORMAL);
-//    imshow("paint",paint);
-//    waitKey(0);
-#endif
+    _all_seams.push_back(seam);
+
 }
 
 void LocalWarping::calculateCostImage(Mat &input_image, Mat &cost_image, Mat &mask) {
@@ -310,8 +351,10 @@ void LocalWarping::calculateCostImage(Mat &input_image, Mat &cost_image, Mat &ma
 
 }
 
-void LocalWarping::singleShift(Position position, const vector<Point2i> &seam) {
-#ifdef SHOW
+void LocalWarping::insertSeamAndUpdateDisplacementMap(Position position, const vector<Point2i> &seam) {
+#ifdef SINGE_STEP_SHOW
+    show_displacement_map(_displacement_map, "Image", false);
+
     Mat paint = _local_wraping_img.clone();
     for(int i = 0; i < seam.size(); i++){
         paint.at<Vec3b>(seam[i]) = Vec3b(0,0,255);
@@ -323,6 +366,9 @@ void LocalWarping::singleShift(Position position, const vector<Point2i> &seam) {
     waitKey(0);
 #endif
 
+
+    vector<vector<Point2i>> current_displacement_map = _displacement_map;
+
     if(position == Bottom){
         for(int i = 0; i < seam.size(); i++){
             int x = seam[i].x;
@@ -332,7 +378,10 @@ void LocalWarping::singleShift(Position position, const vector<Point2i> &seam) {
             }
             _mask.at<uchar>(Point2i(x,y)) = 0;
             for(int j = y; j != seam[i].y; j--){
+                //x: col_index y(j): row_index
                 _local_wraping_img.at<Vec3b>(Point2i(x,j)) = _local_wraping_img.at<Vec3b>(Point(x,j-1));
+                _displacement_map[j][x].y = current_displacement_map[j-1][x].y - 1;
+                _displacement_map[j][x].x = current_displacement_map[j-1][x].x;
             }
         }
     }
@@ -346,6 +395,8 @@ void LocalWarping::singleShift(Position position, const vector<Point2i> &seam) {
             _mask.at<uchar>(Point2i(x,y)) = 0;
             for(int j = y; j != seam[i].y; j++){
                 _local_wraping_img.at<Vec3b>(Point2i(x,j)) = _local_wraping_img.at<Vec3b>(Point(x,j+1));
+                _displacement_map[j][x].y = current_displacement_map[j+1][x].y + 1;
+                _displacement_map[j][x].x = current_displacement_map[j+1][x].x;
             }
         }
     }
@@ -359,6 +410,8 @@ void LocalWarping::singleShift(Position position, const vector<Point2i> &seam) {
             _mask.at<uchar>(Point2i(x,y)) = 0;
             for(int j = x; j != seam[i].x; j--){
                 _local_wraping_img.at<Vec3b>(Point2i(j,y)) = _local_wraping_img.at<Vec3b>(Point(j-1,y));
+                _displacement_map[y][j].y = current_displacement_map[y][j-1].y;
+                _displacement_map[y][j].x = current_displacement_map[y][j-1].x - 1;
             }
         }
     }
@@ -372,6 +425,8 @@ void LocalWarping::singleShift(Position position, const vector<Point2i> &seam) {
             _mask.at<uchar>(Point2i(x,y)) = 0;
             for(int j = x; j != seam[i].x; j++){
                 _local_wraping_img.at<Vec3b>(Point2i(j,y)) = _local_wraping_img.at<Vec3b>(Point(j+1,y));
+                _displacement_map[y][j].y = current_displacement_map[y][j+1].y;
+                _displacement_map[y][j].x = current_displacement_map[y][j+1].x + 1;
             }
         }
     }
@@ -401,10 +456,18 @@ void LocalWarping::getExpandImage(Mat &image) {
     image = _local_wraping_img.clone();
 }
 
-void LocalWarping::getSeams(vector<vector<Point2i>> &seams_left, vector<vector<Point2i>> &seams_right,
-                            vector<vector<Point2i>> &seams_top, vector<vector<Point2i>> &seams_bottom) {
-    seams_bottom = _seams_bottom;
-    seams_top = _seams_top;
-    seams_left = _seams_left;
-    seams_right = _seams_right;
+void LocalWarping::getSeams(vector<vector<Point2i>> &displacement_map) {
+    displacement_map = _displacement_map;
+}
+
+void LocalWarping::draw_all_seams() {
+    Mat paint = _local_wraping_img.clone();
+    for(const auto& seam : _all_seams){
+        for(auto point : seam){
+            paint.at<Vec3b>(point) = Vec3b(0,0,255);
+        }
+    }
+    namedWindow("all_seams",WINDOW_NORMAL);
+    imshow("all_seams", paint);
+    waitKey(0);
 }

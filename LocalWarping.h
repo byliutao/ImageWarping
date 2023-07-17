@@ -4,7 +4,8 @@
 
 #ifndef CONFORMALRESIZING_LOCALWARPING_H
 #define CONFORMALRESIZING_LOCALWARPING_H
-//#define SHOW
+//#define SINGE_STEP_SHOW
+#define RESULT_SHOW
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <limits>
@@ -31,24 +32,21 @@ class LocalWarping {
     Mat _mask; //undefined region
     Mat _source_img;
     Mat _local_wraping_img;
-
-    vector<vector<Point2i>> _seams_left;
-    vector<vector<Point2i>> _seams_right;
-    vector<vector<Point2i>> _seams_top;
-    vector<vector<Point2i>> _seams_bottom;
-
+    vector<vector<Point2i>> _displacement_map; //(x,y) movement of the rectangle map pixel to the origin map related pixel
+    vector<vector<Point2i>> _all_seams;
     Rect getSubImageRect(Position position);
     bool imageShift(Position position);
-    void singleShift(Position position, const vector<Point2i> &seam);
+    void insertSeamAndUpdateDisplacementMap(Position position, const vector<Point2i> &seam);
     void getEmptyPositionMask(Mat &input, Mat &output);
     void calculateSeam(Mat &src, Mat &mask, Direction direction, vector<Point2i> &seam, Rect roi);
     void calculateCostImage(Mat &input_image, Mat &cost_image, Mat &mask);
     void getTheBiggestPosition(LocalWarping::Position &result_position, const vector<bool> &position_flag);
+    void show_displacement_map(vector<vector<Point2i>> displacement_map, string window_name, bool is_wait);
+    void draw_all_seams();
 public:
     LocalWarping(Mat &source_img, Mat &mask);
     void getExpandImage(Mat &image);
-    void getSeams(vector<vector<Point2i>> &seams_left,vector<vector<Point2i>> &seams_right,
-                  vector<vector<Point2i>> &seams_top,vector<vector<Point2i>> &seams_bottom);
+    void getSeams(vector<vector<Point2i>> &displacement_map);
 };
 
 
