@@ -6,8 +6,8 @@
 
 
 
-GlobalWarping::GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_grids,
-                             vector<Grid> warped_back_grids, int mesh_rows, int mesh_cols, int argc, char **argv) {
+GlobalWarping::GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_grids, vector<Grid> warped_back_grids,
+                             int mesh_rows, int mesh_cols) {
     _source_img = source_img.clone();
     _mask = mask.clone();
     _warped_back_grids = warped_back_grids;
@@ -16,11 +16,9 @@ GlobalWarping::GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_
     _mesh_rows = mesh_rows;
     _rectangle_width = _source_img.cols;
     _rectangle_height = _source_img.rows;
-    _argc = argc;
-    _argv = argv;
     generateCoordinates();
+    lineDetect();
     optimizeEnergyFunction();
-//    openGLRender();
 }
 
 void GlobalWarping::optimizeEnergyFunction() {
@@ -224,6 +222,143 @@ void GlobalWarping::verifyOptimizedGrids() {
 
 void GlobalWarping::getOptimizedGrids(vector<Grid> &optimized_grids) {
     optimized_grids = _optimized_grids;
+}
+
+void GlobalWarping::lineDetect() {
+    Mat gray_source_img;
+    cvtColor(_source_img,gray_source_img,COLOR_BGR2GRAY);
+
+    double* input_image = new double[gray_source_img.rows * gray_source_img.cols];
+    double* output;
+    // 将灰度图像的像素值复制到double类型数组中
+    for (int i = 0; i < gray_source_img.rows; i++)
+    {
+        for (int j = 0; j < gray_source_img.cols; j++)
+        {
+            input_image[i * gray_source_img.cols + j] = static_cast<double>(gray_source_img.at<uchar>(i, j));
+        }
+    }
+
+    int line_num;
+    vector<pair<Point2i,Point2i>> lines;
+    vector<vector<pair<Point2i,Point2i>>> lines_of_mesh(_warped_back_grids.size());
+    output = lsd(&line_num,input_image,gray_source_img.cols,gray_source_img.rows);
+    printf("%d line segments found\n",line_num);
+    for(int i = 0; i < line_num; i++)
+    {
+        lines.emplace_back(Point2i((int)output[7*i],(int)output[7*i+1]),Point2i((int)output[7*i+2],(int)output[7*i+3]));
+    }
+
+    // cut the line using the quad's edge, and push them into their belong quads
+    for(auto line : lines){
+        for(int row = 0; row < _mesh_rows; row++){
+            for(int col = 0; col < _mesh_cols; col++){
+                Grid grid = _warped_back_grids[row*_mesh_cols+col];
+                vector<Point2i> region = {grid.top_right, grid.top_left, grid.bottom_left, grid.bottom_right};
+                if(isInsideGrid(line.first,grid) >= 0 && isInsideGrid(line.second,grid) >= 0){
+                    //both inside the quad
+                    lines_of_mesh[row*_mesh_cols+col].emplace_back(line);
+                }
+                else if(isInsideGrid(line.first,grid) >= 0 && isInsideGrid(line.second,grid) < -1){
+                    //one inside one outside the quad
+                    bool is_find_intersect = false;
+                    int between_point_num = max(abs(line.first.x - line.second.x), abs(line.first.y - line.second.y)) - 1;
+                    Point2f start_point = line.first;
+                    Point2f end_point = line.second;
+                    Point2f direction_vector = end_point - start_point;
+                    for(int i = 1; i <= between_point_num; i++){
+                        Point2f point = start_point + i * direction_vector / (between_point_num + 1);
+                        if(abs(isInsideGrid(point,grid)) < 1){
+                            end_point = Point2i(point);
+                            is_find_intersect = true;
+                            break;
+                        }
+                    }
+                    if(is_find_intersect) lines_of_mesh[row*_mesh_cols+col].emplace_back(start_point,end_point);
+                }
+                else if(isInsideGrid(line.first,grid) < -3 && isInsideGrid(line.second,grid) >= 0){
+                    //one inside one outside the quad
+                    bool is_find_intersect = false;
+                    int between_point_num = max(abs(line.first.x - line.second.x), abs(line.first.y - line.second.y)) - 1;
+                    Point2f start_point = line.second;
+                    Point2f end_point = line.first;
+                    Point2f direction_vector = end_point - start_point;
+                    for(int i = 1; i <= between_point_num; i++){
+                        Point2f point = start_point + i * direction_vector / (between_point_num + 1);
+                        if(abs(isInsideGrid(point,grid)) < 1){
+                            end_point = Point2i(point);
+                            is_find_intersect = true;
+                            break;
+                        }
+                    }
+                    if(is_find_intersect) lines_of_mesh[row*_mesh_cols+col].emplace_back(start_point,end_point);
+                }
+                else{
+                    //both outside the quad
+                    int between_point_num = max(abs(line.first.x - line.second.x), abs(line.first.y - line.second.y)) - 1;
+                    Point2f result_start, result_end;
+                    Point2f start_point = line.second;
+                    Point2f end_point = line.first;
+                    Point2f direction_vector = end_point - start_point;
+                    bool find_first_intersect = false;
+                    bool find_second_intersect = false;
+                    for(int i = 1; i <= between_point_num; i++){
+                        Point2f point = start_point + i * direction_vector / (between_point_num + 1);
+                        if((abs(isInsideGrid(point,grid)) < 1) && !find_first_intersect){
+                            result_start = Point2i(point);
+                            find_first_intersect = true;
+                        }
+                        if(find_first_intersect){
+                            double dis_to_start = norm(point-result_start);
+                            if(dis_to_start > 10 && (abs(isInsideGrid(point,grid)) < 1)){
+                                result_end = Point2i(point);
+                                find_second_intersect = true;
+                                break;
+                            }
+                        }
+                    }
+                    if(find_first_intersect && find_second_intersect){
+                        lines_of_mesh[row*_mesh_cols+col].emplace_back(result_start,result_end);
+                    }
+                }
+            }
+        }
+    }
+
+    _lines_of_mesh = lines_of_mesh;
+#ifdef GLOBAL_SHOW
+    Mat paint = _source_img.clone();
+    for(auto pair : lines){
+        cv::line(paint,pair.first,pair.second,Scalar(0,255,0),1);
+    }
+    namedWindow("line_detect_result",WINDOW_NORMAL);
+    imshow("line_detect_result",paint);
+    waitKey(0);
+#endif
+
+#ifdef GLOBAL_SHOW_STEP
+    Mat paint_ = _source_img.clone();
+    for(int row = 0; row < _mesh_rows; row++){
+        for(int col = 0; col < _mesh_cols; col++){
+            Grid grid = _warped_back_grids[row*_mesh_cols+col];
+            vector<pair<Point2i,Point2i>> quad_lines = lines_of_mesh[row*_mesh_cols+col];
+            for(auto pair : quad_lines){
+                cv::line(paint_,pair.first,pair.second,Scalar(0,255,0),2);
+            }
+            cv::line(paint_, grid.top_left, grid.top_right, cv::Scalar(255, 0, 0),2);
+            cv::line(paint_, grid.top_right, grid.bottom_right, cv::Scalar(255, 0, 0), 2);
+            cv::line(paint_, grid.bottom_right, grid.bottom_left, cv::Scalar(255, 0, 0), 2);
+            cv::line(paint_, grid.bottom_left, grid.top_left, cv::Scalar(255, 0, 0), 2);
+            namedWindow("line_detect_quad",WINDOW_NORMAL);
+            imshow("line_detect_quad",paint_);
+            waitKey(0);
+        }
+    }
+#endif
+}
+
+void GlobalWarping::calculateLineEnergy(Eigen::MatrixXd &line_matrix_A, Eigen::VectorXd &line_vector_b) {
+
 }
 
 

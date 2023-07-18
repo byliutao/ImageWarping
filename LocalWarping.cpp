@@ -73,7 +73,7 @@ LocalWarping::LocalWarping(Mat &source_img, Mat &mask) {
         if(!position_flag[0] && !position_flag[1] && !position_flag[2] && !position_flag[3]) break;
 
     }
-#ifdef RESULT_SHOW
+#ifdef LOCAL_SHOW
     draw_all_seams();
 #endif
 }
@@ -352,7 +352,7 @@ void LocalWarping::calculateCostImage(Mat &input_image, Mat &cost_image, Mat &ma
 }
 
 void LocalWarping::insertSeamAndUpdateDisplacementMap(Position position, const vector<Point2i> &seam) {
-#ifdef SINGE_STEP_SHOW
+#ifdef LOCAL_SHOW_STEP
     show_displacement_map(_displacement_map, "Image", false);
 
     Mat paint = _local_wraping_img.clone();

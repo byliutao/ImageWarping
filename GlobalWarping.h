@@ -5,6 +5,8 @@
 #ifndef CONFORMALRESIZING_GLOBALWARPING_H
 #define CONFORMALRESIZING_GLOBALWARPING_H
 #define GLOBAL_SHOW
+//#define GLOBAL_SHOW_STEP
+
 
 #include <opencv2/opencv.hpp>
 #include <iostream>
@@ -25,6 +27,7 @@ class GlobalWarping {
     vector<vector<Point2i>> _warped_back_coordinates;
     vector<Grid> _optimized_grids;
     vector<vector<Point2i>> _optimized_coordinates;
+    vector<vector<pair<Point2i,Point2i>>> _lines_of_mesh;
     Mat _source_img;
     Mat _mask;
     Mat _render_img;
@@ -37,19 +40,18 @@ class GlobalWarping {
     const double _lambda_L = 100;
     const double _lambda_B = 1e8;
 
-    int _argc;
-    char **_argv;
 
     void verifyOptimizedGrids();
     void optimizeEnergyFunction();
     void generateCoordinates();
     void calculateShapeEnergy(Eigen::MatrixXd &shape_matrix_A);
     void calculateBoundaryEnergy(Eigen::MatrixXd &boundary_matrix_A, Eigen::VectorXd &boundary_vector_b);
+    void calculateLineEnergy(Eigen::MatrixXd &line_matrix_A, Eigen::VectorXd &line_vector_b);
     void getOptimizedGridsFromX(Eigen::VectorXd &X);
-
+    void lineDetect();
 public:
-    GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_grids,
-                  vector<Grid> warped_back_grids, int mesh_rows, int mesh_cols, int argc, char **argv);
+    GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_grids, vector<Grid> warped_back_grids,
+                  int mesh_rows, int mesh_cols);
     void getOptimizedGrids(vector<Grid> &optimized_grids);
 };
 

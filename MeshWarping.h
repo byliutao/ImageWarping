@@ -5,8 +5,8 @@
 #ifndef CONFORMALRESIZING_MESHWARPING_H
 #define CONFORMALRESIZING_MESHWARPING_H
 
-#define RESULT_SHOW_MESH
-//#define SINGLE_STEP_SHOW_MESH
+#define MESH_SHOW
+//#define MESH_SHOW_STEP
 
 #include <opencv2/opencv.hpp>
 #include <iostream>
@@ -31,7 +31,6 @@ class MeshWarping {
 
     void initRectangleImageMesh();
     void warpBackToSourceImageMesh();
-//    void drawGrids(vector<Grid> grids, string window_name, Mat &paint_img);
 public:
     MeshWarping(Mat &source_img, Mat &expand_img, Mat &mask, int mesh_quad_length,
                 vector<vector<Point2i>> &displacement_map);

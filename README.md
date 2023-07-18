@@ -11,4 +11,11 @@ https://theailearner.com/2018/12/29/image-processing-bilinear-interpolation/
 ## Find the minimum of a quadratic form
 
 
+## Line Detection
+for the line detection, we use the code from here(an improved version of LSD algorithm)  
+http://www.ipol.im/pub/art/2012/gjmr-lsd/
+
+
 ## OpenGL Render Image
+
+

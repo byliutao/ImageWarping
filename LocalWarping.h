@@ -4,8 +4,8 @@
 
 #ifndef CONFORMALRESIZING_LOCALWARPING_H
 #define CONFORMALRESIZING_LOCALWARPING_H
-//#define SINGE_STEP_SHOW
-#define RESULT_SHOW
+#define LOCAL_SHOW
+//#define LOCAL_SHOW_STEP
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <limits>

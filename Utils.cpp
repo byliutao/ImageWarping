@@ -10,10 +10,10 @@ void drawGrids(vector<Grid> grids, string window_name, Mat &paint_img, bool is_w
     for (int i = 0; i < grids.size(); i++) {
         // 绘制网格边界线
         Grid grid = grids[i];
-        cv::line(paint, grid.top_left, grid.top_right, cv::Scalar(255, (i*33)%256, (i*11)%256), 1);
-        cv::line(paint, grid.top_right, grid.bottom_right, cv::Scalar(255, (i*33)%256, (i*11)%256), 1);
-        cv::line(paint, grid.bottom_right, grid.bottom_left, cv::Scalar(255, (i*33)%256, (i*11)%256), 1);
-        cv::line(paint, grid.bottom_left, grid.top_left, cv::Scalar(255, (i*33)%256, (i*11)%256), 1);
+        cv::line(paint, grid.top_left, grid.top_right, cv::Scalar(255, (i*11)%256), 2);
+        cv::line(paint, grid.top_right, grid.bottom_right, cv::Scalar(255, (i*33)%256, (i*11)%256), 2);
+        cv::line(paint, grid.bottom_right, grid.bottom_left, cv::Scalar(255, (i*33)%256, (i*11)%256), 2);
+        cv::line(paint, grid.bottom_left, grid.top_left, cv::Scalar(255, (i*33)%256, (i*11)%256), 2);
     }
 
     // 显示带有网格的图像
@@ -25,8 +25,8 @@ void drawGrids(vector<Grid> grids, string window_name, Mat &paint_img, bool is_w
 
 void cropImage(Mat &input_image, Mat &result_image, int quad_length){
 
-    int cols = input_image.cols;
-    int rows = input_image.rows;
+    int cols = input_image.cols - 1;
+    int rows = input_image.rows - 1;
 
     // 计算列数除以 quad_length 的商 cols_new，确保列数可以被 quad_length 整除
     int cols_new = cols / quad_length;
@@ -166,3 +166,22 @@ void init_opengl(int w, int h) {
     glClearDepth(0.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the window
 }
+
+bool isIntersect(cv::Point2i A, cv::Point2i B, cv::Point2i C, cv::Point2i D) {
+    // 判断两线段是否相交
+    int direction1 = (C.x - A.x) * (B.y - A.y) - (C.y - A.y) * (B.x - A.x);
+    int direction2 = (D.x - A.x) * (B.y - A.y) - (D.y - A.y) * (B.x - A.x);
+    int direction3 = (A.x - C.x) * (D.y - C.y) - (A.y - C.y) * (D.x - C.x);
+    int direction4 = (B.x - C.x) * (D.y - C.y) - (B.y - C.y) * (D.x - C.x);
+
+    return (direction1 * direction2 < 0 && direction3 * direction4 < 0);
+}
+
+
+double isInsideGrid(Point2i point, Grid grid){
+    vector<Point2f> contour = {grid.top_left, grid.top_right, grid.bottom_right, grid.bottom_left};
+    return pointPolygonTest(contour,point,true);
+}
+
+
+

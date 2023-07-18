@@ -7,11 +7,14 @@
 
 #include <opencv2/opencv.hpp>
 #include <iostream>
+#include <math.h>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
 using namespace std;
 using namespace cv;
+
+const double EPSILON = 1e-6;
 
 
 class Grid {
@@ -46,5 +49,12 @@ void error_callback(int error, const char* description);
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 void init_opengl(int w, int h);
+
+double isInsideGrid(Point2i point, Grid grid);
+
+
+
+
+
 
 #endif //CONFORMALRESIZING_UTILS_H

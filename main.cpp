@@ -11,7 +11,8 @@
 using namespace std;
 using namespace cv;
 
-const int super_parameter_mesh_quad_length = 28;
+const int super_parameter_mesh_quad_length = 28; //recommend 28
+const int super_parameter_img_width = 1000; //recommend 1000
 
 int g_window_width  = 640;
 int g_window_height = 480;
@@ -83,11 +84,13 @@ static void resize_callback(GLFWwindow* window, int new_width, int new_height) {
 
 int main(int argc, char* argv[]){
     Mat rgbImage = imread("/home/nuc/workspace/ImageWarping/data/panorama.png");
-    resize(rgbImage,rgbImage,Size(1000,1000*rgbImage.rows/rgbImage.cols));
+    resize(rgbImage,rgbImage,Size(super_parameter_img_width,super_parameter_img_width*rgbImage.rows/rgbImage.cols));
+    resize(rgbImage,rgbImage,Size(rgbImage.cols/1,rgbImage.rows/1));
     cropImage(rgbImage,rgbImage,super_parameter_mesh_quad_length);
 
     Mat renderSource = rgbImage.clone();
 
+    // we use the mask to denote the empty area
     Mat mask(rgbImage.size(), CV_8UC1);
     getMask(rgbImage, mask);
 
@@ -105,7 +108,7 @@ int main(int argc, char* argv[]){
     int mesh_rows, mesh_cols;
     meshWarping.getWarpedBackGridsInfo(rectangle_grids, warped_back_grids, mesh_rows, mesh_cols);
 
-    GlobalWarping globalWarping(rgbImage, mask, rectangle_grids, warped_back_grids, mesh_rows, mesh_cols, argc, argv);
+    GlobalWarping globalWarping(rgbImage, mask, rectangle_grids, warped_back_grids, mesh_rows, mesh_cols);
     globalWarping.getOptimizedGrids(optimized_grids);
 
     g_warped_back_grids = warped_back_grids;
