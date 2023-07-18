@@ -15,15 +15,15 @@ MeshWarping::MeshWarping(Mat &source_img, Mat &expand_img, Mat &mask, int mesh_q
     _displacement_map = displacement_map;
 
 
-    initExpandImageMesh();
+    initRectangleImageMesh();
     warpBackToSourceImageMesh();
 
 #ifdef RESULT_SHOW_MESH
-    drawGrids(_warped_back_grids, "_warped_back_grids", _source_img, false);
+    drawGrids(_warped_back_grids, "_warped_back_grids", _source_img, true);
 #endif
 }
 
-void MeshWarping::initExpandImageMesh() {
+void MeshWarping::initRectangleImageMesh() {
     _mesh_cols = _expand_img.cols / _mesh_quad_length;
     _mesh_rows = _expand_img.rows / _mesh_quad_length;
 

@@ -47,13 +47,10 @@ class GlobalWarping {
     void calculateBoundaryEnergy(Eigen::MatrixXd &boundary_matrix_A, Eigen::VectorXd &boundary_vector_b);
     void getOptimizedGridsFromX(Eigen::VectorXd &X);
 
-    void openGLRender();
-    void loadTexture();
-    void saveResultImage();
-    void initGlobal();
 public:
     GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_grids,
                   vector<Grid> warped_back_grids, int mesh_rows, int mesh_cols, int argc, char **argv);
+    void getOptimizedGrids(vector<Grid> &optimized_grids);
 };
 
 

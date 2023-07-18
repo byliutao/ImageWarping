@@ -29,7 +29,7 @@ class MeshWarping {
     int _mesh_rows;
     int _mesh_cols;
 
-    void initExpandImageMesh();
+    void initRectangleImageMesh();
     void warpBackToSourceImageMesh();
 //    void drawGrids(vector<Grid> grids, string window_name, Mat &paint_img);
 public:

@@ -5,110 +5,6 @@
 #include "GlobalWarping.h"
 
 
-GLuint g_source_img_texture;
-int g_mesh_rows;
-int g_mesh_cols;
-Mat g_source_img;
-vector<Grid> g_optimized_grids;
-vector<Grid> g_warped_back_grids;
-vector<vector<Point2i>> g_warped_back_coordinates;
-
-
-void display() {
-    glLoadIdentity();
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    // 绑定纹理
-    glBindTexture(GL_TEXTURE_2D, g_source_img_texture);
-    for(int row = 0; row < g_mesh_rows; row++){
-        for(int col = 0; col < g_mesh_cols; col++){
-//            row = g_mesh_rows - 1;
-//            col = g_mesh_cols - 1;
-            // 定义源图像和目标图像的纹理坐标
-            Point2f tl_target, tr_target, bl_target, br_target;
-            Point2f tl_source, tr_source, bl_source, br_source;
-            Grid target_grid = g_optimized_grids[row*g_mesh_cols + col];
-            Grid source_grid = g_warped_back_grids[row*g_mesh_cols + col];
-
-
-//            drawGrids({target_grid}, "target", g_source_img, false);
-//            drawGrids({source_grid}, "local", g_source_img, true);
-            tl_target.x = 2 * ((float)target_grid.top_left.x / (float)g_source_img.cols) - 1;
-            tr_target.x = 2 * ((float)target_grid.top_right.x / (float)g_source_img.cols) - 1;
-            bl_target.x = 2 * ((float)target_grid.bottom_left.x / (float)g_source_img.cols) - 1;
-            br_target.x = 2 * ((float)target_grid.bottom_right.x / (float)g_source_img.cols) - 1;
-            tl_target.y = 1 - 2 * ((float)target_grid.top_left.y / (float)g_source_img.rows);
-            tr_target.y = 1 - 2 * ((float)target_grid.top_right.y / (float)g_source_img.rows);
-            bl_target.y = 1 - 2 * ((float)target_grid.bottom_left.y / (float)g_source_img.rows);
-            br_target.y = 1 - 2 * ((float)target_grid.bottom_right.y / (float)g_source_img.rows);
-
-            tl_source.x = (float)source_grid.top_left.x / (float)g_source_img.cols;
-            tr_source.x = (float)source_grid.top_right.x / (float)g_source_img.cols;
-            bl_source.x = (float)source_grid.bottom_left.x / (float)g_source_img.cols;
-            br_source.x = (float)source_grid.bottom_right.x / (float)g_source_img.cols;
-            tl_source.y = 1.0f - (float)source_grid.top_left.y / (float)g_source_img.rows;
-            tr_source.y = 1.0f - (float)source_grid.top_right.y / (float)g_source_img.rows;
-            bl_source.y = 1.0f - (float)source_grid.bottom_left.y / (float)g_source_img.rows;
-            br_source.y = 1.0f - (float)source_grid.bottom_right.y / (float)g_source_img.rows;
-
-
-            glBegin(GL_QUADS);
-//            glTexCoord2f(bl_source.x, bl_source.y);glVertex2f(bl_target.x, bl_target.y);
-//            glTexCoord2f(br_source.x, br_source.y);glVertex2f(br_target.x, br_target.y);
-//            glTexCoord2f(tr_source.x, tr_source.y);glVertex2f(tr_target.x, tr_target.y);
-//            glTexCoord2f(tl_source.x, tl_source.y);glVertex2f(tl_target.x, tl_target.y);
-            glTexCoord2f(0.0f, 0.0f);glVertex3f(-1.0f, -1.0f, 0.0f);
-            glTexCoord2f(1.0f, 0.0f);glVertex3f(1.0f, -1.0f, 0.0f);
-            glTexCoord2f(1.0f, 1.0f);glVertex3f(1.0f, 1.0f, 0.0f);
-            glTexCoord2f(0.0f, 1.0f);glVertex3f(-1.0f, 1.0f, 0.0f);
-            glEnd();
-        }
-    }
-
-//    glBindTexture(GL_TEXTURE_2D, 0);
-//
-//    glFlush();
-    glutSwapBuffers();
-
-}
-
-void GlobalWarping::loadTexture() {
-    // 创建纹理
-    glGenTextures(1, &g_source_img_texture);
-    glBindTexture(GL_TEXTURE_2D, g_source_img_texture);
-
-
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, g_source_img.cols, g_source_img.rows, 0, GL_BGR, GL_UNSIGNED_BYTE, g_source_img.data);
-//    glBindTexture(GL_TEXTURE_2D, 0);
-    // 设置纹理参数
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    // 加载输入图像作为纹理
-//    cv::flip(g_source_img, g_source_img, 0);  // 翻转图像以匹配OpenGL的坐标系
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, g_source_img.cols, g_source_img.rows, 0, GL_BGR_EXT, GL_UNSIGNED_BYTE, g_source_img.data);
-}
-
-void GlobalWarping::saveResultImage() {
-    // 获取OpenGL窗口的宽度和高度
-    int width = glutGet(GLUT_WINDOW_WIDTH);
-    int height = glutGet(GLUT_WINDOW_HEIGHT);
-
-    // 创建一个Mat对象用于存储结果图像
-    Mat resultImage(height, width, CV_8UC3);
-
-    // 读取OpenGL渲染的像素数据
-    glReadPixels(0, 0, width, height, GL_BGR_EXT, GL_UNSIGNED_BYTE, resultImage.data);
-
-    // 翻转图像以匹配OpenCV的坐标系
-    cv::flip(resultImage, resultImage, 0);
-
-    _render_img = resultImage.clone();
-}
-
 
 GlobalWarping::GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_grids,
                              vector<Grid> warped_back_grids, int mesh_rows, int mesh_cols, int argc, char **argv) {
@@ -124,7 +20,7 @@ GlobalWarping::GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_
     _argv = argv;
     generateCoordinates();
     optimizeEnergyFunction();
-    openGLRender();
+//    openGLRender();
 }
 
 void GlobalWarping::optimizeEnergyFunction() {
@@ -325,41 +221,9 @@ void GlobalWarping::verifyOptimizedGrids() {
     }
 }
 
-void GlobalWarping::openGLRender() {
-    initGlobal();
-    // 初始化OpenGL和GLUT
-//    int argc = 0;
-    glutInit(&_argc, _argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-    glutInitWindowPosition(100, 100);
-    glutInitWindowSize(g_source_img.cols, g_source_img.rows);
-    glutCreateWindow("Texture Mapping");
-//    GLenum err = glewInit();
-//    if (GLEW_OK != err)
-//    {
-//        std::cerr << "GLEW Error: " << glewGetErrorString(err) << std::endl;
-//        return;
-//    }
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_TEXTURE_2D);
-    // 加载纹理
-    loadTexture();
-    glutDisplayFunc(display);
 
-    // 开始主循环
-    glutMainLoop();
-
-    // 保存结果图像
-//    saveResultImage();
-
-}
-
-void GlobalWarping::initGlobal() {
-    g_source_img = _source_img.clone();
-    g_mesh_cols = _mesh_cols;
-    g_mesh_rows = _mesh_rows;
-    g_optimized_grids = _optimized_grids;
-    g_warped_back_grids = _warped_back_grids;
+void GlobalWarping::getOptimizedGrids(vector<Grid> &optimized_grids) {
+    optimized_grids = _optimized_grids;
 }
 
 

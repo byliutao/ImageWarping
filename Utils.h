@@ -7,6 +7,8 @@
 
 #include <opencv2/opencv.hpp>
 #include <iostream>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 
 using namespace std;
 using namespace cv;
@@ -31,11 +33,18 @@ public:
 
 };
 
-
 void drawGrids(vector<Grid> grids, string window_name, Mat &paint_img, bool is_wait);
 
 void cropImage(Mat &input_image, Mat &result_image, int quad_length);
 
 void getMask(Mat &input_img, Mat &whiteMask);
+
+GLuint matToTexture(const cv::Mat &mat, GLenum minFilter, GLenum magFilter, GLenum wrapFilter);
+
+void error_callback(int error, const char* description);
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+
+void init_opengl(int w, int h);
 
 #endif //CONFORMALRESIZING_UTILS_H

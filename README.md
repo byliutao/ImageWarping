@@ -8,4 +8,7 @@
 https://theailearner.com/2018/12/29/image-processing-nearest-neighbour-interpolation/  
 https://theailearner.com/2018/12/29/image-processing-bilinear-interpolation/
 
-## 求解二次型的最小值
+## Find the minimum of a quadratic form
+
+
+## OpenGL Render Image
