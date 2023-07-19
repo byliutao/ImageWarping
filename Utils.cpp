@@ -21,6 +21,7 @@ void drawGrids(vector<Grid> grids, string window_name, Mat &paint_img, bool is_w
     cv::imshow(window_name, paint);
     if(is_wait) cv::waitKey(0);
     else cv::waitKey(1);
+//    destroyAllWindows();
 }
 
 void cropImage(Mat &input_image, Mat &result_image, int quad_length){
@@ -183,5 +184,188 @@ double isInsideGrid(Point2i point, Grid grid){
     return pointPolygonTest(contour,point,true);
 }
 
+float cross( Point2f a, Point2f b ) { return a.x*b.y - a.y*b.x; }
+
+bool getInvBilinearWeight(Point2i p, Grid grid, pair<double, double> &res_w) {
+    Point2f e = grid.top_right - grid.top_left;
+    Point2f f = grid.bottom_left - grid.top_left;
+    Point2f g = grid.top_left - grid.top_right + grid.bottom_right - grid.bottom_left;
+    Point2f h = p - grid.top_left;
+
+    if(e == f || e == g || e == h || f == g || f == h || g == h){
+        res_w.first = 1.0;
+        res_w.second = 0.0;
+        return false;
+    }
+
+
+    float k2 = cross(g, f );
+    float k1 = cross(e, f ) + cross(h, g );
+    float k0 = cross(h, e );
+
+    // if edges are parallel, this is a linear equation
+    if( abs(k2)<0.001 )
+    {
+        res_w = pair<double,double>((h.x * k1 + f.x * k0) / (e.x * k1 - g.x * k0), -k0 / k1 );
+        return true;
+    }
+    // otherwise, it's a quadratic
+    else
+    {
+        float w = k1*k1 - 4.0*k0*k2;
+        if( w<0.0 ) {
+            res_w = pair<double,double>(-1.0,-1.0);
+            return false;
+        }
+        w = sqrt( w );
+
+        float ik2 = 0.5/k2;
+        float v = (-k1 - w)*ik2;
+        float u = (h.x - f.x*v)/(e.x + g.x*v);
+
+        if( u<0.0 || u>1.0 || v<0.0 || v>1.0 )
+        {
+            v = (-k1 + w)*ik2;
+            u = (h.x - f.x*v)/(e.x + g.x*v);
+        }
+        res_w = pair<double,double>( u, v );
+    }
+    return true;
+}
+
+bool get_bilinear_weights(Point2i point, Grid grid, pair<double, double> &res_w){
+    Point2f p1 = grid.top_left; // topLeft
+    Point2f p2 = grid.top_right; // topRight
+    Point2f p3 = grid.bottom_left; // bottomLeft
+    Point2f p4 = grid.bottom_right; // bottomRight
+
+    p3 = p4;
+    double slopeTop = (p2.y - p1.y) / (p2.x - p1.x);
+    double slopeBottom = (p4.y - p3.y) / (p4.x - p3.x);
+    double slopeLeft = (p1.y - p3.y) / (p1.x - p3.x);
+    double slopeRight = (p2.y - p4.y) / (p2.x - p4.x);
+
+    double quadraticEpsilon = 0.01;
+
+    if (slopeTop == slopeBottom && slopeLeft == slopeRight) {
+
+        // method 3
+        Eigen::Matrix2d mat1;
+        mat1 << p2.x - p1.x, p3.x - p1.x,
+                p2.y - p1.y, p3.y - p1.y;
+
+        Eigen::MatrixXd mat2(2,1);
+        mat2 << point.x - p1.x, point.y - p1.y;
+
+        Eigen::MatrixXd matsolution = mat1.inverse()*mat2;
+
+        res_w.first = matsolution(0,0);
+        res_w.second = matsolution(1,0);
+
+        return true;
+    }
+    else if (slopeLeft == slopeRight) {
+
+        // method 2
+        double a = (p2.x - p1.x)*(p4.y - p3.y) - (p2.y - p1.y)*(p4.x - p3.x);
+        double b = point.y*((p4.x - p3.x) - (p2.x - p1.x)) - point.x*((p4.y - p3.y) - (p2.y - p1.y)) + p1.x*(p4.y - p3.y) - p1.y*(p4.x - p3.x) + (p2.x - p1.x)*(p3.y) - (p2.y - p1.y)*(p3.x);
+        double c = point.y*(p3.x - p1.x) - point.x*(p3.y - p1.y) + p1.x*p3.y - p3.x*p1.y;
+
+        double s1 = (-1 * b + sqrt(b*b - 4 * a*c)) / (2 * a);
+        double s2 = (-1 * b - sqrt(b*b - 4 * a*c)) / (2 * a);
+        double s;
+        if (s1 >= 0 && s1 <= 1) {
+            s = s1;
+        }
+        else if (s2 >= 0 && s2 <= 1) {
+            s = s2;
+        }
+        else {
+
+            if ((s1 > 1 && s1 - quadraticEpsilon < 1) ||
+                (s2 > 1 && s2 - quadraticEpsilon < 1)) {
+                s = 1;
+            }
+            else if ((s1 < 0 && s1 + quadraticEpsilon > 0) ||
+                     (s2 < 0 && s2 + quadraticEpsilon > 0)) {
+                s = 0;
+            }
+            else {
+                // this case should not happen
+                cerr << "   Could not interpolate s weight for coordinate (" << point.x << "," << point.y << ")." << endl;
+                s = 0;
+            }
+        }
+
+        double val = (p3.y + (p4.y - p3.y)*s - p1.y - (p2.y - p1.y)*s);
+        double t = (point.y - p1.y - (p2.y - p1.y)*s) / val;
+        double valEpsilon = 0.1; // 0.1 and 0.01 appear identical
+        if (fabs(val) < valEpsilon) {
+            // Py ~= Cy because Dy - Cy ~= 0. So, instead of interpolating with y, we use x.
+            t = (point.x - p1.x - (p2.x - p1.x)*s) / (p3.x + (p4.x - p3.x)*s - p1.x - (p2.x - p1.x)*s);
+        }
+
+        res_w.first = s;
+        res_w.second = t;
+
+        return true;
+    }
+    else {
+
+        // method 1
+        double a = (p3.x - p1.x)*(p4.y - p2.y) - (p3.y - p1.y)*(p4.x - p2.x);
+        double b = point.y*((p4.x - p2.x) - (p3.x - p1.x)) - point.x*((p4.y - p2.y) - (p3.y - p1.y)) + (p3.x - p1.x)*(p2.y) - (p3.y - p1.y)*(p2.x) + (p1.x)*(p4.y - p2.y) - (p1.y)*(p4.x - p2.x);
+        double c = point.y*(p2.x - p1.x) - (point.x)*(p2.y - p1.y) + p1.x*p2.y - p2.x*p1.y;
+
+        double t1 = (-1 * b + sqrt(b*b - 4 * a*c)) / (2 * a);
+        double t2 = (-1 * b - sqrt(b*b - 4 * a*c)) / (2 * a);
+        double t;
+        if (t1 >= 0 && t1 <= 1) {
+            t = t1;
+        }
+        else if (t2 >= 0 && t2 <= 1) {
+            t = t2;
+        }
+        else {
+            if ((t1 > 1 && t1 - quadraticEpsilon < 1) ||
+                (t2 > 1 && t2 - quadraticEpsilon < 1)) {
+                t = 1;
+            }
+            else if ((t1 < 0 && t1 + quadraticEpsilon > 0) ||
+                     (t2 < 0 && t2 + quadraticEpsilon > 0)) {
+                t = 0;
+            }
+            else {
+                // this case should not happen
+                cerr << "   Could not interpolate t weight for coordinate (" << point.x << "," << point.y << ")." << endl;
+                t = 0;
+            }
+        }
+
+        double val = (p2.y + (p4.y - p2.y)*t - p1.y - (p3.y - p1.y)*t);
+        double s = (point.y- p1.y - (p3.y - p1.y)*t) / val;
+        double valEpsilon = 0.1; // 0.1 and 0.01 appear identical
+        if (fabs(val) < valEpsilon) {
+            // Py ~= Ay because By - Ay ~= 0. So, instead of interpolating with y, we use x.
+            s = (point.x - p1.x - (p3.x - p1.x)*t) / (p2.x + (p4.x - p2.x)*t - p1.x - (p3.x - p1.x)*t);
+        }
+
+        res_w.first = clamp(s, 0, 1);
+        res_w.second = clamp(t, 0, 1);
+
+        return true;
+    }
+}
+
+Eigen::MatrixXd bilinearWeightsToMatrix(pair<double,double> w) {
+    Eigen::MatrixXd mat(2,8);
+    double v1w= 1 - w.first - w.second + w.first*w.second;
+    double v2w = w.first - w.first*w.second;
+    double v3w = w.second - w.first*w.second;
+    double v4w = w.first*w.second;
+    mat << v1w, 0, v2w, 0, v3w, 0, v4w, 0,
+            0, v1w, 0, v2w, 0, v3w, 0, v4w;
+    return mat;
+}
 
 

@@ -6,7 +6,7 @@
 #define CONFORMALRESIZING_GLOBALWARPING_H
 #define GLOBAL_SHOW
 //#define GLOBAL_SHOW_STEP
-
+//#define GLOBAL_WITHOUT_LINE
 
 #include <opencv2/opencv.hpp>
 #include <iostream>
@@ -28,6 +28,8 @@ class GlobalWarping {
     vector<Grid> _optimized_grids;
     vector<vector<Point2i>> _optimized_coordinates;
     vector<vector<pair<Point2i,Point2i>>> _lines_of_mesh;
+    vector<vector<int>> _lines_bin_index_of_mesh;
+    vector<pair<double,double>> _theta_bins; // first: theta_scope second: rotation
     Mat _source_img;
     Mat _mask;
     Mat _render_img;
@@ -35,19 +37,22 @@ class GlobalWarping {
     int _mesh_cols;
     int _rectangle_width;
     int _rectangle_height;
-    const int _iter_times = 10;
+    int _N;
+    int _N_L;
     const int _M = 50;
+    const int _iter_times = 10;
     const double _lambda_L = 100;
     const double _lambda_B = 1e8;
 
 
-    void verifyOptimizedGrids();
+    void verifyGrids(vector<Grid> &grids_of_mesh);
     void optimizeEnergyFunction();
     void generateCoordinates();
     void calculateShapeEnergy(Eigen::MatrixXd &shape_matrix_A);
     void calculateBoundaryEnergy(Eigen::MatrixXd &boundary_matrix_A, Eigen::VectorXd &boundary_vector_b);
-    void calculateLineEnergy(Eigen::MatrixXd &line_matrix_A, Eigen::VectorXd &line_vector_b);
-    void getOptimizedGridsFromX(Eigen::VectorXd &X);
+    void calculateLineEnergy(Eigen::MatrixXd &line_matrix_A);
+    void updateThetaMByV(const vector<Grid> &updated_grids);
+    void getUpdatedGridsFromX(Eigen::VectorXd &X, vector<Grid> &grids_of_mesh);
     void lineDetect();
 public:
     GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_grids, vector<Grid> warped_back_grids,

@@ -7,9 +7,15 @@
 
 #include <opencv2/opencv.hpp>
 #include <iostream>
-#include <math.h>
+#include <cmath>
+#include <Eigen/Dense>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+
+#define clamp(x,a,b)    (  ((a)<(b))				\
+? ((x)<(a))?(a):(((x)>(b))?(b):(x))	\
+: ((x)<(b))?(b):(((x)>(a))?(a):(x))	\
+)
 
 using namespace std;
 using namespace cv;
@@ -52,7 +58,11 @@ void init_opengl(int w, int h);
 
 double isInsideGrid(Point2i point, Grid grid);
 
+bool getInvBilinearWeight(Point2i p, Grid grid, pair<double, double> &res_w);
 
+bool get_bilinear_weights(Point2i point, Grid grid, pair<double, double> &res_w);
+
+Eigen::MatrixXd bilinearWeightsToMatrix(pair<double,double> w);
 
 
 

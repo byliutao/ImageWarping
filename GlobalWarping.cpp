@@ -16,8 +16,15 @@ GlobalWarping::GlobalWarping(Mat &source_img, Mat &mask, vector<Grid> rectangle_
     _mesh_rows = mesh_rows;
     _rectangle_width = _source_img.cols;
     _rectangle_height = _source_img.rows;
+    _N = mesh_cols * mesh_rows;
+    for(int i = 0; i < _M; i++){
+        double theta = -M_PI/2.0 + (i / 50.0) * M_PI;
+        _theta_bins.emplace_back(theta,0);
+    }
     generateCoordinates();
+#ifndef GLOBAL_WITHOUT_LINE
     lineDetect();
+#endif
     optimizeEnergyFunction();
 }
 
@@ -39,15 +46,42 @@ void GlobalWarping::optimizeEnergyFunction() {
 
     Eigen::MatrixXd energy_matrix_A((_mesh_cols + 1) * (_mesh_rows + 1) * 2, (_mesh_cols + 1) * (_mesh_rows + 1) * 2);
     Eigen::VectorXd energy_matrix_b((_mesh_cols + 1) * (_mesh_rows + 1) * 2);
-    energy_matrix_A = energy_shape_matrix_A + _lambda_B*energy_boundary_matrix_A;
-    energy_matrix_b = _lambda_B*energy_boundary_matrix_b;
+#ifdef GLOBAL_WITHOUT_LINE
+    // without line constrain
+    energy_matrix_A =  energy_shape_matrix_A + _lambda_B * energy_boundary_matrix_A;
+    energy_matrix_b = _lambda_B * energy_boundary_matrix_b;
 
     Eigen::VectorXd x = energy_matrix_A.colPivHouseholderQr().solve(-0.5*energy_matrix_b);
-    getOptimizedGridsFromX(x);
-    for(int i = 0; i < _iter_times; i++){
-        //iter without line constraints
+    getUpdatedGridsFromX(x,_optimized_grids);
+    drawGrids(_optimized_grids,"optimized_grids",_source_img,true);
+#else
+    Eigen::MatrixXd energy_line_matrix_A((_mesh_cols + 1) * (_mesh_rows + 1) * 2, (_mesh_cols + 1) * (_mesh_rows + 1) * 2);
+    vector<Grid> updated_grids;
+    for(int iter = 0; iter < _iter_times; iter++){
+        cout<<"iter: "<<iter<<endl;
+        energy_line_matrix_A.setZero();
+        updated_grids.clear();
+        calculateLineEnergy(energy_line_matrix_A);
 
+        // Fix {theta_m} update V
+        energy_matrix_A = energy_shape_matrix_A + _lambda_L * energy_line_matrix_A + _lambda_B * energy_boundary_matrix_A;
+        energy_matrix_b = _lambda_B * energy_boundary_matrix_b;
+        Eigen::VectorXd x = energy_matrix_A.colPivHouseholderQr().solve(-0.5*energy_matrix_b);
+        getUpdatedGridsFromX(x, updated_grids);
+
+        // Fix V update {theta_m}
+        updateThetaMByV(updated_grids);
+
+#ifdef GLOBAL_SHOW_STEP
+        drawGrids(updated_grids,"updated_grids",_source_img,true);
+#endif
     }
+    _optimized_grids = updated_grids;
+#ifdef GLOBAL_SHOW
+    drawGrids(_optimized_grids,"optimized_grids",_source_img,true);
+#endif
+#endif
+
 
 
 }
@@ -122,6 +156,7 @@ void GlobalWarping::calculateShapeEnergy(Eigen::MatrixXd &shape_matrix_A) {
         }
     }
 
+    shape_matrix_A /= (double)_N;
 //    for(int i = 0; i < energy_matrix.rows(); i++){
 //        for(int j = 0; j < energy_matrix.cols(); j++){
 //            cout<<fixed<<setprecision(1)<<energy_matrix(i,j)<<" ";
@@ -180,41 +215,41 @@ void GlobalWarping::calculateBoundaryEnergy(Eigen::MatrixXd &boundary_matrix_A, 
 //    }
 }
 
-void GlobalWarping::getOptimizedGridsFromX(Eigen::VectorXd &X) {
+void GlobalWarping::getUpdatedGridsFromX(Eigen::VectorXd &X, vector<Grid> &grids_of_mesh) {
+    vector<vector<Point2i>> coordinates_of_mesh;
     for(int row = 0; row <= _mesh_rows; row++){
         vector<Point2i> col_points;
         for(int col = 0; col <= _mesh_cols; col++){
             int index = 2*row*(_mesh_cols+1) + 2*col;
             col_points.emplace_back(X[index],X[index+1]);
         }
-        _optimized_coordinates.push_back(col_points);
+        coordinates_of_mesh.push_back(col_points);
     }
 
     for(int row = 0; row < _mesh_rows; row++){
         for(int col = 0; col < _mesh_cols; col++){
             Point2i top_left, top_right, bottom_left, bottom_right;
-            top_left = _optimized_coordinates[row][col];
-            top_right = _optimized_coordinates[row][col+1];
-            bottom_left = _optimized_coordinates[row+1][col];
-            bottom_right = _optimized_coordinates[row+1][col+1];
-            _optimized_grids.emplace_back(top_left,top_right,bottom_right,bottom_left);
+            top_left = coordinates_of_mesh[row][col];
+            top_right = coordinates_of_mesh[row][col+1];
+            bottom_left = coordinates_of_mesh[row+1][col];
+            bottom_right = coordinates_of_mesh[row+1][col+1];
+            grids_of_mesh.emplace_back(top_left,top_right,bottom_right,bottom_left);
         }
     }
-    verifyOptimizedGrids();
-    drawGrids(_optimized_grids, "optimized_grids", _source_img, true);
+    verifyGrids(grids_of_mesh);
 }
 
-void GlobalWarping::verifyOptimizedGrids() {
+void GlobalWarping::verifyGrids(vector<Grid> &grids_of_mesh) {
     for(int col = 0; col < _mesh_cols; col++){
-        if(_optimized_grids[(_mesh_rows-1)*_mesh_cols+col].bottom_left.y != _source_img.rows - 1)
+        if(grids_of_mesh[(_mesh_rows-1)*_mesh_cols+col].bottom_left.y != _source_img.rows - 1)
         {
-            _optimized_grids[(_mesh_rows-1)*_mesh_cols+col].bottom_left.y = _source_img.rows - 1;
-            _optimized_coordinates[_mesh_rows][col].y = _source_img.rows - 1;
+            grids_of_mesh[(_mesh_rows-1)*_mesh_cols+col].bottom_left.y = _source_img.rows - 1;
+//            _optimized_coordinates[_mesh_rows][col].y = _source_img.rows - 1;
         }
-        if(_optimized_grids[(_mesh_rows-1)*_mesh_cols+col].bottom_right.y != _source_img.rows - 1)
+        if(grids_of_mesh[(_mesh_rows-1)*_mesh_cols+col].bottom_right.y != _source_img.rows - 1)
         {
-            _optimized_grids[(_mesh_rows-1)*_mesh_cols+col].bottom_right.y = _source_img.rows - 1;
-            _optimized_coordinates[_mesh_rows][col+1].y = _source_img.rows - 1;
+            grids_of_mesh[(_mesh_rows-1)*_mesh_cols+col].bottom_right.y = _source_img.rows - 1;
+//            _optimized_coordinates[_mesh_rows][col+1].y = _source_img.rows - 1;
         }
     }
 }
@@ -248,7 +283,6 @@ void GlobalWarping::lineDetect() {
     {
         lines.emplace_back(Point2i((int)output[7*i],(int)output[7*i+1]),Point2i((int)output[7*i+2],(int)output[7*i+3]));
     }
-
     // cut the line using the quad's edge, and push them into their belong quads
     for(auto line : lines){
         for(int row = 0; row < _mesh_rows; row++){
@@ -268,7 +302,8 @@ void GlobalWarping::lineDetect() {
                     Point2f direction_vector = end_point - start_point;
                     for(int i = 1; i <= between_point_num; i++){
                         Point2f point = start_point + i * direction_vector / (between_point_num + 1);
-                        if(abs(isInsideGrid(point,grid)) < 1){
+                        double dis_to_start = cv::norm(point-start_point);
+                        if(abs(isInsideGrid(point,grid)) < 1 && dis_to_start > 5){
                             end_point = Point2i(point);
                             is_find_intersect = true;
                             break;
@@ -276,7 +311,7 @@ void GlobalWarping::lineDetect() {
                     }
                     if(is_find_intersect) lines_of_mesh[row*_mesh_cols+col].emplace_back(start_point,end_point);
                 }
-                else if(isInsideGrid(line.first,grid) < -3 && isInsideGrid(line.second,grid) >= 0){
+                else if(isInsideGrid(line.first,grid) < -1 && isInsideGrid(line.second,grid) >= 0){
                     //one inside one outside the quad
                     bool is_find_intersect = false;
                     int between_point_num = max(abs(line.first.x - line.second.x), abs(line.first.y - line.second.y)) - 1;
@@ -285,7 +320,8 @@ void GlobalWarping::lineDetect() {
                     Point2f direction_vector = end_point - start_point;
                     for(int i = 1; i <= between_point_num; i++){
                         Point2f point = start_point + i * direction_vector / (between_point_num + 1);
-                        if(abs(isInsideGrid(point,grid)) < 1){
+                        double dis_to_start = cv::norm(point-start_point);
+                        if(abs(isInsideGrid(point,grid)) < 1 && dis_to_start > 5){
                             end_point = Point2i(point);
                             is_find_intersect = true;
                             break;
@@ -310,7 +346,7 @@ void GlobalWarping::lineDetect() {
                         }
                         if(find_first_intersect){
                             double dis_to_start = norm(point-result_start);
-                            if(dis_to_start > 10 && (abs(isInsideGrid(point,grid)) < 1)){
+                            if(dis_to_start > 5 && (abs(isInsideGrid(point,grid)) < 1)){
                                 result_end = Point2i(point);
                                 find_second_intersect = true;
                                 break;
@@ -326,6 +362,29 @@ void GlobalWarping::lineDetect() {
     }
 
     _lines_of_mesh = lines_of_mesh;
+    for(int row = 0; row < _mesh_rows; row++){
+        for(int col = 0; col < _mesh_cols; col++){
+            vector<pair<Point2i,Point2i>> quad_lines = _lines_of_mesh[row*_mesh_cols+col];
+            vector<int> lines_angle_index_of_quad;
+            for(int i = 0; i < quad_lines.size(); i++){
+                bool find = false;
+                pair<Point2d,Point2d> line = quad_lines[i];
+                double theta = atan((line.first.y-line.second.y)/(line.first.x-line.second.x));
+                for(int j = 0; j < _M; j++){
+                    double min = _theta_bins[j].first;
+                    double max = _theta_bins[j].first + ((j+1) / 50.0) * M_PI;
+                    if(theta >= min && theta < max){
+                        lines_angle_index_of_quad.emplace_back(j);
+                        find = true;
+                        break;
+                    }
+                }
+                CV_Assert(find);
+            }
+            _lines_bin_index_of_mesh.emplace_back(lines_angle_index_of_quad);
+        }
+    }
+
 #ifdef GLOBAL_SHOW
     Mat paint = _source_img.clone();
     for(auto pair : lines){
@@ -333,6 +392,24 @@ void GlobalWarping::lineDetect() {
     }
     namedWindow("line_detect_result",WINDOW_NORMAL);
     imshow("line_detect_result",paint);
+
+
+    Mat paint__ = _source_img.clone();
+    for(int row = 0; row < _mesh_rows; row++){
+        for(int col = 0; col < _mesh_cols; col++){
+            Grid grid = _warped_back_grids[row*_mesh_cols+col];
+            vector<pair<Point2i,Point2i>> quad_lines = _lines_of_mesh[row*_mesh_cols+col];
+            for(auto pair : quad_lines){
+                cv::line(paint__,pair.first,pair.second,Scalar(0,255,0),2);
+            }
+            cv::line(paint__, grid.top_left, grid.top_right, cv::Scalar(255, 0, 0),2);
+            cv::line(paint__, grid.top_right, grid.bottom_right, cv::Scalar(255, 0, 0), 2);
+            cv::line(paint__, grid.bottom_right, grid.bottom_left, cv::Scalar(255, 0, 0), 2);
+            cv::line(paint__, grid.bottom_left, grid.top_left, cv::Scalar(255, 0, 0), 2);
+        }
+    }
+    namedWindow("line_detect_quad",WINDOW_NORMAL);
+    imshow("line_detect_quad",paint__);
     waitKey(0);
 #endif
 
@@ -341,7 +418,7 @@ void GlobalWarping::lineDetect() {
     for(int row = 0; row < _mesh_rows; row++){
         for(int col = 0; col < _mesh_cols; col++){
             Grid grid = _warped_back_grids[row*_mesh_cols+col];
-            vector<pair<Point2i,Point2i>> quad_lines = lines_of_mesh[row*_mesh_cols+col];
+            vector<pair<Point2i,Point2i>> quad_lines = _lines_of_mesh[row*_mesh_cols+col];
             for(auto pair : quad_lines){
                 cv::line(paint_,pair.first,pair.second,Scalar(0,255,0),2);
             }
@@ -357,8 +434,118 @@ void GlobalWarping::lineDetect() {
 #endif
 }
 
-void GlobalWarping::calculateLineEnergy(Eigen::MatrixXd &line_matrix_A, Eigen::VectorXd &line_vector_b) {
+void GlobalWarping::calculateLineEnergy(Eigen::MatrixXd &line_matrix_A) {
+    _N_L = 0;
+    for(int row = 0; row < _mesh_rows; row++){
+        for(int col = 0; col < _mesh_cols; col++){
+            int grid_index = row*_mesh_cols+col;
+            Grid grid = _warped_back_grids[grid_index];
+            vector<pair<Point2i,Point2i>> quad_lines = _lines_of_mesh[grid_index];
+            vector<int> quad_bins_index = _lines_bin_index_of_mesh[grid_index];
 
+            for(int line_index = 0; line_index < quad_lines.size(); line_index++){
+                Eigen::MatrixXd current_line_coff_Matrix((_mesh_cols + 1) * (_mesh_rows + 1) * 2, (_mesh_cols + 1) * (_mesh_rows + 1) * 2);
+                current_line_coff_Matrix.setZero();
+
+                pair<Point2i,Point2i> line = quad_lines[line_index];
+
+                Eigen::MatrixXd e_hat(2,1);
+                e_hat << line.first.x-line.second.x, line.first.y-line.second.y;
+
+                Eigen::MatrixXd R(2,2);
+                int index_theta = quad_bins_index[line_index];
+                double theta_m = _theta_bins[index_theta].second;
+                R << cos(theta_m), -sin(theta_m),
+                    sin(theta_m), cos(theta_m);
+
+                Eigen::MatrixXd inverse_tmp = (e_hat.transpose()*e_hat).inverse();
+                Eigen::MatrixXd C_mat = R * e_hat * inverse_tmp * ( e_hat.transpose() )*( R.transpose() ) - Eigen::Matrix2d::Identity();
+
+                Eigen::MatrixXd C_T_multi_C = C_mat.transpose() * C_mat;
+
+                pair<double,double> w1;
+                pair<double,double> w2;
+                bool w1_flag = getInvBilinearWeight(line.first, grid, w1);
+                bool w2_flag = getInvBilinearWeight(line.second, grid, w2);
+                if(w1_flag && w2_flag){
+                    Eigen::MatrixXd start_mat = bilinearWeightsToMatrix(w1);
+                    Eigen::MatrixXd end_mat = bilinearWeightsToMatrix(w2);
+                    Eigen::MatrixXd difference_mat = end_mat - start_mat;
+                    Eigen::MatrixXd Coff = difference_mat.transpose()*C_mat.transpose()*C_mat*difference_mat;
+                    _N_L++;
+
+                    vector<int> index(8,0);
+                    for(int i = 0; i < 8; i++){
+                        if(i < 4) index[i] = 2 * row * (_mesh_cols + 1) + col * 2 + i;
+                        else index[i] = 2 * (row + 1) * (_mesh_cols + 1) + col * 2 + (i - 4);
+                    }
+                    for(int i = 0; i < 8; i++){
+                        for(int j = 0; j < 8; j++){
+                            current_line_coff_Matrix(index[i], index[j]) = Coff(i, j);
+                        }
+                    }
+                    line_matrix_A += current_line_coff_Matrix;
+                }
+                else{
+                    //                    cout<<"fail"<<endl;
+                }
+            }
+        }
+    }
+    line_matrix_A /= (double)_N_L;
+}
+
+void GlobalWarping::updateThetaMByV(const vector<Grid> &updated_grids) {
+    //update _lines_bin_index_of_mesh
+    vector<vector<double>> lines_angle_of_bin(_M);
+    for(int row = 0; row < _mesh_rows; row++){
+        for(int col = 0; col < _mesh_cols; col++){
+            int quad_index= row*_mesh_cols+col;
+            Grid original_grid = _warped_back_grids[quad_index];
+            Grid updated_grid = updated_grids[quad_index];
+            vector<pair<Point2i,Point2i>> lines = _lines_of_mesh[quad_index];
+            vector<int> lines_bin_index = _lines_bin_index_of_mesh[quad_index];
+            for(int i = 0; i < lines.size(); i++){
+                int bin_index = lines_bin_index[i];
+                if(bin_index != 0){
+                    int a = 0;
+                }
+                pair<Point2d,Point2d> original_line = lines[i];
+                pair<Point2d,Point2d> updated_line;
+                double original_theta = atan((original_line.first.y - original_line.second.y) / (original_line.first.x - original_line.second.x));
+
+                pair<double,double> w1;
+                pair<double,double> w2;
+                bool w1_flag = getInvBilinearWeight(original_line.second, original_grid, w1);
+                bool w2_flag = getInvBilinearWeight(original_line.first, original_grid, w2);
+                if(w1_flag && w2_flag){
+                    double u1 = w1.first, v1 = w1.second, u2 = w2.first, v2 = w2.second;
+                    Point2d A = updated_grid.top_left, B = updated_grid.top_right, C = updated_grid.bottom_right, D = updated_grid.bottom_left;
+                    updated_line.first = A + (B - A) * u1 + (D - A) * v1 + (A - B + C - D) * u1 * v1;
+                    updated_line.second = A + (B - A) * u2 + (D - A) * v2 + (A - B + C - D) * u2 * v2;
+                    double updated_theta = atan((updated_line.first.y - updated_line.second.y) / (updated_line.first.x - updated_line.second.x));
+                    double delta_theta = updated_theta - original_theta;
+                    if (delta_theta > (M_PI / 2)) {
+                        delta_theta -= M_PI;
+                    }
+                    if (delta_theta < (-M_PI / 2)) {
+                        delta_theta += M_PI;
+                    }
+
+                    lines_angle_of_bin[bin_index].emplace_back(delta_theta);
+                }
+            }
+        }
+    }
+
+    for(int i = 0; i < _M; i++){
+        if(lines_angle_of_bin[i].empty()) continue;
+        double total_delta_angle = 0;
+        for(auto delta_angle : lines_angle_of_bin[i]) total_delta_angle += delta_angle;
+        double avg_delta_angle = total_delta_angle / (double)lines_angle_of_bin[i].size();
+        _theta_bins[i].second = avg_delta_angle;
+    }
+//    int a = 0;
 }
 
 
