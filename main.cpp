@@ -3,6 +3,7 @@
 //
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <unistd.h>
 #include "LocalWarping.h"
 #include "MeshWarping.h"
 #include "GlobalWarping.h"
@@ -13,6 +14,7 @@ using namespace cv;
 
 const int super_parameter_mesh_quad_length = 28; //recommend 28
 const int super_parameter_img_width = 1000; //recommend 1000
+const string test_img_name = "line.png";
 
 int g_window_width  = 640;
 int g_window_height = 480;
@@ -83,7 +85,9 @@ static void resize_callback(GLFWwindow* window, int new_width, int new_height) {
 }
 
 int main(int argc, char* argv[]){
-    Mat rgbImage = imread("/home/nuc/workspace/ImageWarping/data/panorama.png");
+    std::string sourceDir = __FILE__;
+    std::string image_path = sourceDir.substr(0,sourceDir.length()-8) + "data/" + test_img_name;
+    Mat rgbImage = imread(image_path);
     resize(rgbImage,rgbImage,Size(super_parameter_img_width,super_parameter_img_width*rgbImage.rows/rgbImage.cols));
     resize(rgbImage,rgbImage,Size(rgbImage.cols/1,rgbImage.rows/1));
     cropImage(rgbImage,rgbImage,super_parameter_mesh_quad_length);
