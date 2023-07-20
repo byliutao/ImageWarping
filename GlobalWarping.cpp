@@ -74,7 +74,10 @@ void GlobalWarping::optimizeEnergyFunction() {
         double t2 = cv::getTickCount();
         cout<<"iter"<<iter<<"_consume_time: "<< (t2 - t1) / cv::getTickFrequency() * 1000 << "ms "<<endl;
 #ifdef GLOBAL_SHOW_STEP
-        drawGrids(updated_grids,"updated_grids",_source_img,true);
+        Mat paint = _source_img.clone();
+        string text = "iter: " + to_string(iter);
+        putText(paint,text,Point2i(40,40),1,2,Scalar(0,0,255),3);
+        drawGrids(updated_grids,"updated_grids",paint,true);
 #endif
     }
     double end = cv::getTickCount();

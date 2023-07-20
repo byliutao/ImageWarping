@@ -335,6 +335,13 @@ void LocalWarping::calculateCostImage(Mat &input_image, Mat &cost_image, Mat &ma
     cv::convertScaleAbs(gradientY, gradientY);
     cv::addWeighted(gradientX, 0.5, gradientY, 0.5, 0, cost_image, CV_32FC1);
 
+//show
+//    cv::Mat dst;
+//    cv::normalize(cost_image, dst, 0, 1, cv::NORM_MINMAX);
+//    cv::imshow("test", dst);
+//    cv::waitKey(0);
+//
+
 
     // 将 mask 图像中像素值为 255 的点在cost_image中对应的值设置为 10^8
     for (int i = 0; i < cost_image.rows; ++i)

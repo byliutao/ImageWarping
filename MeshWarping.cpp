@@ -42,8 +42,8 @@ void MeshWarping::initRectangleImageMesh() {
         }
     }
 
-#ifdef SHOW_MESH
-    drawGrids(_rectangle_grids, "Image with Grid", _expand_img);
+#ifdef MESH_SHOW
+    drawGrids(_rectangle_grids, "Image with Grid", _expand_img, true);
 #endif
 }
 
@@ -52,7 +52,7 @@ void MeshWarping::warpBackToSourceImageMesh() {
     for(int i = 0; i < _rectangle_grids.size(); i++){
 #ifdef MESH_SHOW_STEP
         drawGrids(_warped_back_grids, "_warped_back_grids", _source_img, false);
-        waitKey(10);
+        waitKey(0);
 #endif
         Point2i displaced_top_left = _rectangle_grids[i].top_left;
         Point2i original_top_left = displaced_top_left + _displacement_map[displaced_top_left.y][displaced_top_left.x];

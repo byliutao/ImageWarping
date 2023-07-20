@@ -15,8 +15,8 @@ using namespace cv;
 // #define SHOW_MASK
 
 const int super_parameter_mesh_quad_length = 28; //recommend 28
-const int super_parameter_img_width = 800; //recommend 1000
-const string test_img_name = "building.png";
+const int super_parameter_img_width = 900; //recommend 1000
+const string test_img_name = "panorama.png";
 
 int g_window_width  = 640;
 int g_window_height = 480;
