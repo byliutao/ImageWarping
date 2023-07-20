@@ -52,7 +52,7 @@ void getMask(Mat &input_img, Mat &whiteMask){
 
     Mat element = getStructuringElement(MORPH_RECT, Size(6, 6));
     morphologyEx(whiteMask, whiteMask, MORPH_OPEN, element);
-    dilate(whiteMask,whiteMask, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(12, 12)));
+//    dilate(whiteMask,whiteMask, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(30, 30)));
     std::vector<std::vector<cv::Point>> contours;
     std::vector<cv::Vec4i> hierarchy;
     cv::findContours(whiteMask, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
@@ -168,16 +168,6 @@ void init_opengl(int w, int h) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the window
 }
 
-bool isIntersect(cv::Point2i A, cv::Point2i B, cv::Point2i C, cv::Point2i D) {
-    // 判断两线段是否相交
-    int direction1 = (C.x - A.x) * (B.y - A.y) - (C.y - A.y) * (B.x - A.x);
-    int direction2 = (D.x - A.x) * (B.y - A.y) - (D.y - A.y) * (B.x - A.x);
-    int direction3 = (A.x - C.x) * (D.y - C.y) - (A.y - C.y) * (D.x - C.x);
-    int direction4 = (B.x - C.x) * (D.y - C.y) - (B.y - C.y) * (D.x - C.x);
-
-    return (direction1 * direction2 < 0 && direction3 * direction4 < 0);
-}
-
 
 double isInsideGrid(Point2i point, Grid grid){
     vector<Point2f> contour = {grid.top_left, grid.top_right, grid.bottom_right, grid.bottom_left};
@@ -231,130 +221,6 @@ bool getInvBilinearWeight(Point2i p, Grid grid, pair<double, double> &res_w) {
         res_w = pair<double,double>( u, v );
     }
     return true;
-}
-
-bool get_bilinear_weights(Point2i point, Grid grid, pair<double, double> &res_w){
-    Point2f p1 = grid.top_left; // topLeft
-    Point2f p2 = grid.top_right; // topRight
-    Point2f p3 = grid.bottom_left; // bottomLeft
-    Point2f p4 = grid.bottom_right; // bottomRight
-
-    p3 = p4;
-    double slopeTop = (p2.y - p1.y) / (p2.x - p1.x);
-    double slopeBottom = (p4.y - p3.y) / (p4.x - p3.x);
-    double slopeLeft = (p1.y - p3.y) / (p1.x - p3.x);
-    double slopeRight = (p2.y - p4.y) / (p2.x - p4.x);
-
-    double quadraticEpsilon = 0.01;
-
-    if (slopeTop == slopeBottom && slopeLeft == slopeRight) {
-
-        // method 3
-        Eigen::Matrix2d mat1;
-        mat1 << p2.x - p1.x, p3.x - p1.x,
-                p2.y - p1.y, p3.y - p1.y;
-
-        Eigen::MatrixXd mat2(2,1);
-        mat2 << point.x - p1.x, point.y - p1.y;
-
-        Eigen::MatrixXd matsolution = mat1.inverse()*mat2;
-
-        res_w.first = matsolution(0,0);
-        res_w.second = matsolution(1,0);
-
-        return true;
-    }
-    else if (slopeLeft == slopeRight) {
-
-        // method 2
-        double a = (p2.x - p1.x)*(p4.y - p3.y) - (p2.y - p1.y)*(p4.x - p3.x);
-        double b = point.y*((p4.x - p3.x) - (p2.x - p1.x)) - point.x*((p4.y - p3.y) - (p2.y - p1.y)) + p1.x*(p4.y - p3.y) - p1.y*(p4.x - p3.x) + (p2.x - p1.x)*(p3.y) - (p2.y - p1.y)*(p3.x);
-        double c = point.y*(p3.x - p1.x) - point.x*(p3.y - p1.y) + p1.x*p3.y - p3.x*p1.y;
-
-        double s1 = (-1 * b + sqrt(b*b - 4 * a*c)) / (2 * a);
-        double s2 = (-1 * b - sqrt(b*b - 4 * a*c)) / (2 * a);
-        double s;
-        if (s1 >= 0 && s1 <= 1) {
-            s = s1;
-        }
-        else if (s2 >= 0 && s2 <= 1) {
-            s = s2;
-        }
-        else {
-
-            if ((s1 > 1 && s1 - quadraticEpsilon < 1) ||
-                (s2 > 1 && s2 - quadraticEpsilon < 1)) {
-                s = 1;
-            }
-            else if ((s1 < 0 && s1 + quadraticEpsilon > 0) ||
-                     (s2 < 0 && s2 + quadraticEpsilon > 0)) {
-                s = 0;
-            }
-            else {
-                // this case should not happen
-                cerr << "   Could not interpolate s weight for coordinate (" << point.x << "," << point.y << ")." << endl;
-                s = 0;
-            }
-        }
-
-        double val = (p3.y + (p4.y - p3.y)*s - p1.y - (p2.y - p1.y)*s);
-        double t = (point.y - p1.y - (p2.y - p1.y)*s) / val;
-        double valEpsilon = 0.1; // 0.1 and 0.01 appear identical
-        if (fabs(val) < valEpsilon) {
-            // Py ~= Cy because Dy - Cy ~= 0. So, instead of interpolating with y, we use x.
-            t = (point.x - p1.x - (p2.x - p1.x)*s) / (p3.x + (p4.x - p3.x)*s - p1.x - (p2.x - p1.x)*s);
-        }
-
-        res_w.first = s;
-        res_w.second = t;
-
-        return true;
-    }
-    else {
-
-        // method 1
-        double a = (p3.x - p1.x)*(p4.y - p2.y) - (p3.y - p1.y)*(p4.x - p2.x);
-        double b = point.y*((p4.x - p2.x) - (p3.x - p1.x)) - point.x*((p4.y - p2.y) - (p3.y - p1.y)) + (p3.x - p1.x)*(p2.y) - (p3.y - p1.y)*(p2.x) + (p1.x)*(p4.y - p2.y) - (p1.y)*(p4.x - p2.x);
-        double c = point.y*(p2.x - p1.x) - (point.x)*(p2.y - p1.y) + p1.x*p2.y - p2.x*p1.y;
-
-        double t1 = (-1 * b + sqrt(b*b - 4 * a*c)) / (2 * a);
-        double t2 = (-1 * b - sqrt(b*b - 4 * a*c)) / (2 * a);
-        double t;
-        if (t1 >= 0 && t1 <= 1) {
-            t = t1;
-        }
-        else if (t2 >= 0 && t2 <= 1) {
-            t = t2;
-        }
-        else {
-            if ((t1 > 1 && t1 - quadraticEpsilon < 1) ||
-                (t2 > 1 && t2 - quadraticEpsilon < 1)) {
-                t = 1;
-            }
-            else if ((t1 < 0 && t1 + quadraticEpsilon > 0) ||
-                     (t2 < 0 && t2 + quadraticEpsilon > 0)) {
-                t = 0;
-            }
-            else {
-                // this case should not happen
-                cerr << "   Could not interpolate t weight for coordinate (" << point.x << "," << point.y << ")." << endl;
-                t = 0;
-            }
-        }
-
-        double val = (p2.y + (p4.y - p2.y)*t - p1.y - (p3.y - p1.y)*t);
-        double s = (point.y- p1.y - (p3.y - p1.y)*t) / val;
-        double valEpsilon = 0.1; // 0.1 and 0.01 appear identical
-        if (fabs(val) < valEpsilon) {
-            // Py ~= Ay because By - Ay ~= 0. So, instead of interpolating with y, we use x.
-            s = (point.x - p1.x - (p3.x - p1.x)*t) / (p2.x + (p4.x - p2.x)*t - p1.x - (p3.x - p1.x)*t);
-        }
-
-        res_w.first = clamp(s, 0, 1);
-        res_w.second = clamp(t, 0, 1);
-
-        return true;
-    }
 }
 
 Eigen::MatrixXd bilinearWeightsToMatrix(pair<double,double> w) {

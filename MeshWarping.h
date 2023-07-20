@@ -5,7 +5,7 @@
 #ifndef CONFORMALRESIZING_MESHWARPING_H
 #define CONFORMALRESIZING_MESHWARPING_H
 
-#define MESH_SHOW
+//#define MESH_SHOW
 //#define MESH_SHOW_STEP
 
 #include <opencv2/opencv.hpp>

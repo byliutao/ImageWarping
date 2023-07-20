@@ -12,9 +12,11 @@
 using namespace std;
 using namespace cv;
 
+#define SHOW_MASK
+
 const int super_parameter_mesh_quad_length = 28; //recommend 28
 const int super_parameter_img_width = 1000; //recommend 1000
-const string test_img_name = "line.png";
+const string test_img_name = "building.png";
 
 int g_window_width  = 640;
 int g_window_height = 480;
@@ -84,20 +86,41 @@ static void resize_callback(GLFWwindow* window, int new_width, int new_height) {
     glMatrixMode(GL_MODELVIEW);
 }
 
+void enlargeGrids(vector<Grid> &input_grids, Size input_size, Size enlarge_size){
+    double x_enlarge_factor = (double)enlarge_size.width/(double)input_size.width;
+    double y_enlarge_factor = (double)enlarge_size.height/(double)input_size.height;
+    for(auto &grid : input_grids){
+        grid.top_left.x *= x_enlarge_factor;
+        grid.top_right.x *= x_enlarge_factor;
+        grid.bottom_right.x *= x_enlarge_factor;
+        grid.bottom_left.x *= x_enlarge_factor;
+        grid.top_left.y *= x_enlarge_factor;
+        grid.top_right.y *= x_enlarge_factor;
+        grid.bottom_right.y *= x_enlarge_factor;
+        grid.bottom_left.y *= x_enlarge_factor;
+    }
+}
+
+
 int main(int argc, char* argv[]){
     std::string sourceDir = __FILE__;
     std::string image_path = sourceDir.substr(0,sourceDir.length()-8) + "data/" + test_img_name;
     Mat rgbImage = imread(image_path);
+    Mat original_image = rgbImage.clone();
+    Size original_size = original_image.size();
     resize(rgbImage,rgbImage,Size(super_parameter_img_width,super_parameter_img_width*rgbImage.rows/rgbImage.cols));
     resize(rgbImage,rgbImage,Size(rgbImage.cols/1,rgbImage.rows/1));
     cropImage(rgbImage,rgbImage,super_parameter_mesh_quad_length);
-
-    Mat renderSource = rgbImage.clone();
+    Size shrink_size = rgbImage.size();
 
     // we use the mask to denote the empty area
     Mat mask(rgbImage.size(), CV_8UC1);
     getMask(rgbImage, mask);
-
+#ifdef SHOW_MASK
+    cv::namedWindow("mask",WINDOW_NORMAL);
+    cv::imshow("mask",mask);
+    waitKey(0);
+#endif
     Mat expand_img;
     vector<vector<Point2i>> displacement_map;
     LocalWarping localWarping(rgbImage, mask);
@@ -115,6 +138,10 @@ int main(int argc, char* argv[]){
     GlobalWarping globalWarping(rgbImage, mask, rectangle_grids, warped_back_grids, mesh_rows, mesh_cols);
     globalWarping.getOptimizedGrids(optimized_grids);
 
+    Mat renderSource = original_image.clone();
+    enlargeGrids(optimized_grids,shrink_size,original_size);
+    enlargeGrids(warped_back_grids,shrink_size,original_size);
+    drawGrids(warped_back_grids,"TEST",renderSource,true);
     g_warped_back_grids = warped_back_grids;
     g_optimized_grids = optimized_grids;
     g_mesh_rows = mesh_rows;

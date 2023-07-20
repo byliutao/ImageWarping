@@ -53,12 +53,12 @@ void GlobalWarping::optimizeEnergyFunction() {
 
     Eigen::VectorXd x = energy_matrix_A.colPivHouseholderQr().solve(-0.5*energy_matrix_b);
     getUpdatedGridsFromX(x,_optimized_grids);
-    drawGrids(_optimized_grids,"optimized_grids",_source_img,true);
 #else
     Eigen::MatrixXd energy_line_matrix_A((_mesh_cols + 1) * (_mesh_rows + 1) * 2, (_mesh_cols + 1) * (_mesh_rows + 1) * 2);
     vector<Grid> updated_grids;
+    double start = cv::getTickCount();
     for(int iter = 0; iter < _iter_times; iter++){
-        cout<<"iter: "<<iter<<endl;
+        double t1 = cv::getTickCount();
         energy_line_matrix_A.setZero();
         updated_grids.clear();
         calculateLineEnergy(energy_line_matrix_A);
@@ -71,18 +71,21 @@ void GlobalWarping::optimizeEnergyFunction() {
 
         // Fix V update {theta_m}
         updateThetaMByV(updated_grids);
-
+        double t2 = cv::getTickCount();
+//        cout<<"iter"<<iter<<"_consume_time: "<< (t2 - t1) / cv::getTickFrequency() * 1000 << "ms "<<endl;
 #ifdef GLOBAL_SHOW_STEP
         drawGrids(updated_grids,"updated_grids",_source_img,true);
 #endif
     }
+    double end = cv::getTickCount();
+    cout<<"total_consume_time: "<< (end - start) / cv::getTickFrequency() * 1000 << "ms "<<endl;
+
     _optimized_grids = updated_grids;
+#endif
+
 #ifdef GLOBAL_SHOW
     drawGrids(_optimized_grids,"optimized_grids",_source_img,true);
 #endif
-#endif
-
-
 
 }
 
@@ -119,8 +122,6 @@ void GlobalWarping::generateCoordinates() {
 void GlobalWarping::calculateShapeEnergy(Eigen::MatrixXd &shape_matrix_A) {
     for(int row = 0; row < _mesh_rows; row++){
         for(int col = 0; col < _mesh_cols; col++){
-            Eigen::MatrixXd current_quad_coff_Matrix((_mesh_cols+1) * (_mesh_rows+1) * 2, (_mesh_cols+1) * (_mesh_rows+1) * 2);
-            current_quad_coff_Matrix.setZero();
             Eigen::MatrixXd Aq(8,4);
             Point2i top_left = _warped_back_grids[row*_mesh_cols + col].top_left;
             Point2i top_right = _warped_back_grids[row*_mesh_cols + col].top_right;
@@ -142,6 +143,7 @@ void GlobalWarping::calculateShapeEnergy(Eigen::MatrixXd &shape_matrix_A) {
             Eigen::MatrixXd Bq_transpose = Bq.transpose();
             Eigen::MatrixXd Coff = Bq_transpose * Bq;
 
+            //calculate quad related index of Coff_Matrix_A
             vector<int> index(8,0);
             for(int i = 0; i < 8; i++){
                 if(i < 4) index[i] = 2*row*(_mesh_cols+1)+col*2+i;
@@ -149,70 +151,38 @@ void GlobalWarping::calculateShapeEnergy(Eigen::MatrixXd &shape_matrix_A) {
             }
             for(int i = 0; i < 8; i++){
                 for(int j = 0; j < 8; j++){
-                    current_quad_coff_Matrix(index[i],index[j]) = Coff(i,j);
+                    shape_matrix_A(index[i],index[j]) += Coff(i,j);
                 }
             }
-            shape_matrix_A += current_quad_coff_Matrix;
         }
     }
 
     shape_matrix_A /= (double)_N;
-//    for(int i = 0; i < energy_matrix.rows(); i++){
-//        for(int j = 0; j < energy_matrix.cols(); j++){
-//            cout<<fixed<<setprecision(1)<<energy_matrix(i,j)<<" ";
-//        }
-//        cout<<endl;
-//    }
-//    waitKey(0);
 }
 
 void GlobalWarping::calculateBoundaryEnergy(Eigen::MatrixXd &boundary_matrix_A, Eigen::VectorXd &boundary_vector_b) {
     //Left
     for(int row = 0; row <= _mesh_rows; row++){
-        Eigen::MatrixXd current_point_Matrix_A((_mesh_cols + 1) * (_mesh_rows + 1) * 2, (_mesh_cols + 1) * (_mesh_rows + 1) * 2);
-        current_point_Matrix_A.setZero();
         int index = 2*row*(_mesh_cols+1);
-        current_point_Matrix_A(index, index) = 1;
-        boundary_matrix_A += current_point_Matrix_A;
+        boundary_matrix_A(index, index) += 1;
     }
     //Right
     for(int row = 0; row <= _mesh_rows; row++){
-        Eigen::MatrixXd current_point_Matrix_A((_mesh_cols + 1) * (_mesh_rows + 1) * 2, (_mesh_cols + 1) * (_mesh_rows + 1) * 2);
-        current_point_Matrix_A.setZero();
         int index = 2*row*(_mesh_cols+1) + _mesh_cols*2;
-        current_point_Matrix_A(index, index) = 1;
-        boundary_matrix_A += current_point_Matrix_A;
-
-        Eigen::VectorXd current_point_Matrix_b((_mesh_cols + 1) * (_mesh_rows + 1) * 2);
-        current_point_Matrix_b.setZero();
-        current_point_Matrix_b(index) = -2*(_rectangle_width-1);
-        boundary_vector_b += current_point_Matrix_b;
+        boundary_matrix_A(index, index) += 1;
+        boundary_vector_b(index) += -2*(_rectangle_width-1);
     }
     //Top
     for(int col = 0; col <= _mesh_cols; col++){
-        Eigen::MatrixXd current_point_Matrix_A((_mesh_cols + 1) * (_mesh_rows + 1) * 2, (_mesh_cols + 1) * (_mesh_rows + 1) * 2);
-        current_point_Matrix_A.setZero();
         int index = 2*col + 1;
-        current_point_Matrix_A(index, index) = 1;
-        boundary_matrix_A += current_point_Matrix_A;
+        boundary_matrix_A(index, index) += 1;
     }
     //Bottom
     for(int col = 0; col <= _mesh_cols; col++){
-        Eigen::MatrixXd current_point_Matrix_A((_mesh_cols + 1) * (_mesh_rows + 1) * 2, (_mesh_cols + 1) * (_mesh_rows + 1) * 2);
-        current_point_Matrix_A.setZero();
         int index = 2*col + 1 + _mesh_rows*(_mesh_cols+1)*2;
-        current_point_Matrix_A(index, index) = 1;
-        boundary_matrix_A += current_point_Matrix_A;
-
-        Eigen::VectorXd current_point_Matrix_b((_mesh_cols + 1) * (_mesh_rows + 1) * 2);
-        current_point_Matrix_b.setZero();
-        current_point_Matrix_b(index) = -2*(_rectangle_height-1);
-        boundary_vector_b += current_point_Matrix_b;
+        boundary_matrix_A(index, index) += 1;
+        boundary_vector_b(index) += -2*(_rectangle_height-1);
     }
-
-//    for(int i = 0; i < boundary_vector_b.size(); i++){
-//        cout<<boundary_vector_b(i)<<endl;
-//    }
 }
 
 void GlobalWarping::getUpdatedGridsFromX(Eigen::VectorXd &X, vector<Grid> &grids_of_mesh) {
@@ -436,43 +406,42 @@ void GlobalWarping::lineDetect() {
 
 void GlobalWarping::calculateLineEnergy(Eigen::MatrixXd &line_matrix_A) {
     _N_L = 0;
+
     for(int row = 0; row < _mesh_rows; row++){
         for(int col = 0; col < _mesh_cols; col++){
             int grid_index = row*_mesh_cols+col;
             Grid grid = _warped_back_grids[grid_index];
             vector<pair<Point2i,Point2i>> quad_lines = _lines_of_mesh[grid_index];
             vector<int> quad_bins_index = _lines_bin_index_of_mesh[grid_index];
-
             for(int line_index = 0; line_index < quad_lines.size(); line_index++){
-                Eigen::MatrixXd current_line_coff_Matrix((_mesh_cols + 1) * (_mesh_rows + 1) * 2, (_mesh_cols + 1) * (_mesh_rows + 1) * 2);
-                current_line_coff_Matrix.setZero();
 
                 pair<Point2i,Point2i> line = quad_lines[line_index];
 
-                Eigen::MatrixXd e_hat(2,1);
-                e_hat << line.first.x-line.second.x, line.first.y-line.second.y;
-
-                Eigen::MatrixXd R(2,2);
-                int index_theta = quad_bins_index[line_index];
-                double theta_m = _theta_bins[index_theta].second;
-                R << cos(theta_m), -sin(theta_m),
-                    sin(theta_m), cos(theta_m);
-
-                Eigen::MatrixXd inverse_tmp = (e_hat.transpose()*e_hat).inverse();
-                Eigen::MatrixXd C_mat = R * e_hat * inverse_tmp * ( e_hat.transpose() )*( R.transpose() ) - Eigen::Matrix2d::Identity();
-
-                Eigen::MatrixXd C_T_multi_C = C_mat.transpose() * C_mat;
 
                 pair<double,double> w1;
                 pair<double,double> w2;
                 bool w1_flag = getInvBilinearWeight(line.first, grid, w1);
                 bool w2_flag = getInvBilinearWeight(line.second, grid, w2);
+
                 if(w1_flag && w2_flag){
+                    _N_L++;
+                    Eigen::MatrixXd e_hat(2,1);
+                    e_hat << line.first.x-line.second.x, line.first.y-line.second.y;
+
+                    Eigen::MatrixXd R(2,2);
+                    int index_theta = quad_bins_index[line_index];
+                    double theta_m = _theta_bins[index_theta].second;
+                    R << cos(theta_m), -sin(theta_m),
+                            sin(theta_m), cos(theta_m);
+
+                    Eigen::MatrixXd inverse_tmp = (e_hat.transpose()*e_hat).inverse();
+                    Eigen::MatrixXd C_mat = R * e_hat * inverse_tmp * ( e_hat.transpose() )*( R.transpose() ) - Eigen::Matrix2d::Identity();
+
+
                     Eigen::MatrixXd start_mat = bilinearWeightsToMatrix(w1);
                     Eigen::MatrixXd end_mat = bilinearWeightsToMatrix(w2);
                     Eigen::MatrixXd difference_mat = end_mat - start_mat;
                     Eigen::MatrixXd Coff = difference_mat.transpose()*C_mat.transpose()*C_mat*difference_mat;
-                    _N_L++;
 
                     vector<int> index(8,0);
                     for(int i = 0; i < 8; i++){
@@ -481,17 +450,14 @@ void GlobalWarping::calculateLineEnergy(Eigen::MatrixXd &line_matrix_A) {
                     }
                     for(int i = 0; i < 8; i++){
                         for(int j = 0; j < 8; j++){
-                            current_line_coff_Matrix(index[i], index[j]) = Coff(i, j);
+                            line_matrix_A(index[i], index[j]) += Coff(i,j);
                         }
                     }
-                    line_matrix_A += current_line_coff_Matrix;
-                }
-                else{
-                    //                    cout<<"fail"<<endl;
                 }
             }
         }
     }
+
     line_matrix_A /= (double)_N_L;
 }
 

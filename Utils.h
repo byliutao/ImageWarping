@@ -12,10 +12,6 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#define clamp(x,a,b)    (  ((a)<(b))				\
-? ((x)<(a))?(a):(((x)>(b))?(b):(x))	\
-: ((x)<(b))?(b):(((x)>(a))?(a):(x))	\
-)
 
 using namespace std;
 using namespace cv;
@@ -33,11 +29,6 @@ public:
     Grid(cv::Point2i tl, cv::Point2i tr, cv::Point2i br, cv::Point2i bl)
             : top_left(tl), top_right(tr), bottom_right(br), bottom_left(bl) {
 
-    }
-
-    bool isContainPoint(Point2i point){
-        cv::Rect gridRect(top_left, bottom_right);
-        return gridRect.contains(point);
     }
 
 };
@@ -60,11 +51,7 @@ double isInsideGrid(Point2i point, Grid grid);
 
 bool getInvBilinearWeight(Point2i p, Grid grid, pair<double, double> &res_w);
 
-bool get_bilinear_weights(Point2i point, Grid grid, pair<double, double> &res_w);
-
 Eigen::MatrixXd bilinearWeightsToMatrix(pair<double,double> w);
-
-
 
 
 #endif //CONFORMALRESIZING_UTILS_H
