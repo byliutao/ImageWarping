@@ -4,6 +4,22 @@
 第二轮考察要求相似，需要用C++实现：https://mmcheng.net/imageresizing/ 这个页面下面链接的这个论文 Rectangling Panoramic Images via Warping。同样准备PPT面试。交互界面和图像变形部分建议调用OpenGL的纹理贴图来实现。正常的程序执行时间5s以内，请不要明显超过这个时间。
 请在2周之内完成这个测试。  
 
+## Result
+### seam carving
+![Alt text](presentation/gif/seamcarving.gif)
+### get displacement map
+![Alt text](presentation/gif/displacement_map.gif)
+### mesh warped backward
+![Alt text](presentation/gif/mesh_warped_backward.gif)
+### line detect
+![Alt text](presentation/gif/line.gif)
+### global warping iteration
+![Alt text](presentation/gif/global_iter.gif)
+### line preservation compare
+![Alt text](presentation/photo/line_compare.png)
+### other results
+![Alt text](presentation/photo/result1.png)
+![Alt text](presentation/photo/result2.png)
 ## bilinear interpolation
 https://theailearner.com/2018/12/29/image-processing-nearest-neighbour-interpolation/  
 https://theailearner.com/2018/12/29/image-processing-bilinear-interpolation/
@@ -12,14 +28,12 @@ For the situation in the paper, the quad is a trapezoid, we can use Inverse Bili
 
 
 ## Find the minimum of a quadratic form
-
+the energy function E is a quadratic function on V and can be optimized via solving a linear system
 
 ## Line Detection
 for the line detection, we use the code from here(an improved version of LSD algorithm)  
 http://www.ipol.im/pub/art/2012/gjmr-lsd/
 
-
-## OpenGL Render Image
 
 ## Dependencies
 ### install opengl
