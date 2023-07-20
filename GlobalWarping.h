@@ -4,9 +4,9 @@
 
 #ifndef CONFORMALRESIZING_GLOBALWARPING_H
 #define CONFORMALRESIZING_GLOBALWARPING_H
-//#define GLOBAL_SHOW
-//#define GLOBAL_SHOW_STEP
-//#define GLOBAL_WITHOUT_LINE
+// #define GLOBAL_SHOW
+// #define GLOBAL_SHOW_STEP
+// #define GLOBAL_WITHOUT_LINE
 
 #include <opencv2/opencv.hpp>
 #include <iostream>

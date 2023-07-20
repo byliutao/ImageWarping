@@ -12,10 +12,10 @@
 using namespace std;
 using namespace cv;
 
-#define SHOW_MASK
+// #define SHOW_MASK
 
 const int super_parameter_mesh_quad_length = 28; //recommend 28
-const int super_parameter_img_width = 1000; //recommend 1000
+const int super_parameter_img_width = 800; //recommend 1000
 const string test_img_name = "building.png";
 
 int g_window_width  = 640;
@@ -106,42 +106,55 @@ int main(int argc, char* argv[]){
     std::string sourceDir = __FILE__;
     std::string image_path = sourceDir.substr(0,sourceDir.length()-8) + "data/" + test_img_name;
     Mat rgbImage = imread(image_path);
-    Mat original_image = rgbImage.clone();
-    Size original_size = original_image.size();
-    resize(rgbImage,rgbImage,Size(super_parameter_img_width,super_parameter_img_width*rgbImage.rows/rgbImage.cols));
-    resize(rgbImage,rgbImage,Size(rgbImage.cols/1,rgbImage.rows/1));
-    cropImage(rgbImage,rgbImage,super_parameter_mesh_quad_length);
-    Size shrink_size = rgbImage.size();
-
     // we use the mask to denote the empty area
     Mat mask(rgbImage.size(), CV_8UC1);
     getMask(rgbImage, mask);
+    Mat original_image = rgbImage.clone();
+
+    //down_sample
+    Size original_size = original_image.size();
+    if(rgbImage.cols > super_parameter_img_width) {
+        resize(rgbImage,rgbImage,Size(super_parameter_img_width,super_parameter_img_width*rgbImage.rows/rgbImage.cols));
+        resize(mask,mask,Size(super_parameter_img_width,super_parameter_img_width*mask.rows/mask.cols));
+    }
+//    cropImage(rgbImage,rgbImage,super_parameter_mesh_quad_length);
+//    cropImage(mask,mask,super_parameter_mesh_quad_length);
+
+    Size shrink_size = rgbImage.size();
+
+
 #ifdef SHOW_MASK
+    cv::namedWindow("image",WINDOW_NORMAL);
+    cv::imshow("image",rgbImage);
     cv::namedWindow("mask",WINDOW_NORMAL);
     cv::imshow("mask",mask);
     waitKey(0);
 #endif
+    //local warping
     Mat expand_img;
     vector<vector<Point2i>> displacement_map;
     LocalWarping localWarping(rgbImage, mask);
     localWarping.getExpandImage(expand_img);
     localWarping.getSeams(displacement_map);
+
     MeshWarping meshWarping(rgbImage, expand_img, mask, super_parameter_mesh_quad_length,
                             displacement_map);
 
+    //mesh warp back
     vector<Grid> warped_back_grids;
     vector<Grid> rectangle_grids;
     vector<Grid> optimized_grids;
     int mesh_rows, mesh_cols;
     meshWarping.getWarpedBackGridsInfo(rectangle_grids, warped_back_grids, mesh_rows, mesh_cols);
 
+    //global warping
     GlobalWarping globalWarping(rgbImage, mask, rectangle_grids, warped_back_grids, mesh_rows, mesh_cols);
     globalWarping.getOptimizedGrids(optimized_grids);
 
+    //up_sample
     Mat renderSource = original_image.clone();
     enlargeGrids(optimized_grids,shrink_size,original_size);
     enlargeGrids(warped_back_grids,shrink_size,original_size);
-    drawGrids(warped_back_grids,"TEST",renderSource,true);
     g_warped_back_grids = warped_back_grids;
     g_optimized_grids = optimized_grids;
     g_mesh_rows = mesh_rows;

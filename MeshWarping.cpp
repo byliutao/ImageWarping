@@ -51,7 +51,8 @@ void MeshWarping::warpBackToSourceImageMesh() {
 
     for(int i = 0; i < _rectangle_grids.size(); i++){
 #ifdef MESH_SHOW_STEP
-        drawGrids(_warped_back_grids, "_warped_back_grids", _source_img, true);
+        drawGrids(_warped_back_grids, "_warped_back_grids", _source_img, false);
+        waitKey(10);
 #endif
         Point2i displaced_top_left = _rectangle_grids[i].top_left;
         Point2i original_top_left = displaced_top_left + _displacement_map[displaced_top_left.y][displaced_top_left.x];

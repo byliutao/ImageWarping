@@ -72,7 +72,7 @@ void GlobalWarping::optimizeEnergyFunction() {
         // Fix V update {theta_m}
         updateThetaMByV(updated_grids);
         double t2 = cv::getTickCount();
-//        cout<<"iter"<<iter<<"_consume_time: "<< (t2 - t1) / cv::getTickFrequency() * 1000 << "ms "<<endl;
+        cout<<"iter"<<iter<<"_consume_time: "<< (t2 - t1) / cv::getTickFrequency() * 1000 << "ms "<<endl;
 #ifdef GLOBAL_SHOW_STEP
         drawGrids(updated_grids,"updated_grids",_source_img,true);
 #endif
@@ -398,10 +398,11 @@ void GlobalWarping::lineDetect() {
             cv::line(paint_, grid.bottom_left, grid.top_left, cv::Scalar(255, 0, 0), 2);
             namedWindow("line_detect_quad",WINDOW_NORMAL);
             imshow("line_detect_quad",paint_);
-            waitKey(0);
+            waitKey(10);
         }
     }
 #endif
+
 }
 
 void GlobalWarping::calculateLineEnergy(Eigen::MatrixXd &line_matrix_A) {
@@ -473,9 +474,6 @@ void GlobalWarping::updateThetaMByV(const vector<Grid> &updated_grids) {
             vector<int> lines_bin_index = _lines_bin_index_of_mesh[quad_index];
             for(int i = 0; i < lines.size(); i++){
                 int bin_index = lines_bin_index[i];
-                if(bin_index != 0){
-                    int a = 0;
-                }
                 pair<Point2d,Point2d> original_line = lines[i];
                 pair<Point2d,Point2d> updated_line;
                 double original_theta = atan((original_line.first.y - original_line.second.y) / (original_line.first.x - original_line.second.x));
@@ -485,12 +483,24 @@ void GlobalWarping::updateThetaMByV(const vector<Grid> &updated_grids) {
                 bool w1_flag = getInvBilinearWeight(original_line.second, original_grid, w1);
                 bool w2_flag = getInvBilinearWeight(original_line.first, original_grid, w2);
                 if(w1_flag && w2_flag){
-                    double u1 = w1.first, v1 = w1.second, u2 = w2.first, v2 = w2.second;
                     Point2d A = updated_grid.top_left, B = updated_grid.top_right, C = updated_grid.bottom_right, D = updated_grid.bottom_left;
-                    updated_line.first = A + (B - A) * u1 + (D - A) * v1 + (A - B + C - D) * u1 * v1;
-                    updated_line.second = A + (B - A) * u2 + (D - A) * v2 + (A - B + C - D) * u2 * v2;
-                    double updated_theta = atan((updated_line.first.y - updated_line.second.y) / (updated_line.first.x - updated_line.second.x));
-                    double delta_theta = updated_theta - original_theta;
+
+                    Eigen::MatrixXd start_mat = bilinearWeightsToMatrix(w1);
+                    Eigen::MatrixXd end_mat = bilinearWeightsToMatrix(w2);
+                    Eigen::MatrixXd difference_mat = end_mat - start_mat;
+                    Eigen::MatrixXd X(8,1);
+                    X << A.x, A.y, B.x, B.y, D.x, D.y, C.x, C.y;
+                    Eigen::MatrixXd angle_vector = difference_mat*X;
+                    double updated_theta_ = atan(angle_vector(1,0) / angle_vector(0,0));
+                    
+                    // another method to calculate angle
+                    // double u1 = w1.first, v1 = w1.second, u2 = w2.first, v2 = w2.second;
+                    // updated_line.first = A + (B - A) * u1 + (D - A) * v1 + (A - B + C - D) * u1 * v1;
+                    // updated_line.second = A + (B - A) * u2 + (D - A) * v2 + (A - B + C - D) * u2 * v2;
+                    // double updated_theta = atan((updated_line.first.y - updated_line.second.y) / (updated_line.first.x - updated_line.second.x));
+                    // cout<<updated_theta_<<" "<<updated_theta<<endl;
+
+                    double delta_theta = updated_theta_ - original_theta;
                     if (delta_theta > (M_PI / 2)) {
                         delta_theta -= M_PI;
                     }

@@ -52,7 +52,7 @@ void getMask(Mat &input_img, Mat &whiteMask){
 
     Mat element = getStructuringElement(MORPH_RECT, Size(6, 6));
     morphologyEx(whiteMask, whiteMask, MORPH_OPEN, element);
-//    dilate(whiteMask,whiteMask, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(30, 30)));
+    dilate(whiteMask,whiteMask, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(12, 12)));
     std::vector<std::vector<cv::Point>> contours;
     std::vector<cv::Vec4i> hierarchy;
     cv::findContours(whiteMask, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
