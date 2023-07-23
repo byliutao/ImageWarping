@@ -113,7 +113,7 @@ int main(int argc, char* argv[]){
 
     //down_sample
     Size original_size = original_image.size();
-    if(rgbImage.cols > super_parameter_img_width) {
+    if(1) {
         resize(rgbImage,rgbImage,Size(super_parameter_img_width,super_parameter_img_width*rgbImage.rows/rgbImage.cols));
         resize(mask,mask,Size(super_parameter_img_width,super_parameter_img_width*mask.rows/mask.cols));
     }

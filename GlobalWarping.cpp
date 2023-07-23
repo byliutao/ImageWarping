@@ -401,7 +401,7 @@ void GlobalWarping::lineDetect() {
             cv::line(paint_, grid.bottom_left, grid.top_left, cv::Scalar(255, 0, 0), 2);
             namedWindow("line_detect_quad",WINDOW_NORMAL);
             imshow("line_detect_quad",paint_);
-            waitKey(10);
+            waitKey(0);
         }
     }
 #endif
